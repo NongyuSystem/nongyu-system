@@ -2,6 +2,19 @@ import type { RowDataPacket, ResultSetHeader } from "mysql2/promise";
 import { getPool } from "../../lib/db.js";
 import type { ScheduleRow, NoteRow, TodoRow, AttendanceRow } from "./mapper.js";
 
+/**
+ * 将 ISO 8601 / RFC 3339 日期字符串转为 MySQL DATETIME(3) 可接受的格式。
+ * RN 端使用 new Date().toISOString() 产生 "2026-09-09T06:26:24.062Z"，
+ * MySQL 8 DATETIME 需要 "2026-09-09 06:26:24.062"（空格 + 无 Z）。
+ */
+function toDbDatetime(iso: string): string {
+  if (!iso) return iso;
+  return iso
+    .replace("T", " ")
+    .replace("Z", "")
+    .replace(/\+\d{2}:\d{2}$/, "");
+}
+
 // ===== Schedules =====
 
 export async function listSchedules(userId: number): Promise<ScheduleRow[]> {
@@ -43,8 +56,8 @@ export async function insertSchedule(
       data.endPeriod,
       data.weeksListJson,
       data.colorIndex,
-      data.createdAt,
-      data.updatedAt,
+      toDbDatetime(data.createdAt),
+      toDbDatetime(data.updatedAt),
     ],
   );
 }
@@ -84,7 +97,7 @@ export async function updateSchedule(
     }
   }
   sets.push(`updated_at = ?`);
-  args.push(patch.updatedAt, userId, id);
+  args.push(toDbDatetime(patch.updatedAt), userId, id);
   const [res] = await getPool().query<ResultSetHeader>(
     `UPDATE custom_schedules SET ${sets.join(", ")} WHERE user_id = ? AND id = ?`,
     args,
@@ -130,7 +143,14 @@ export async function insertNote(
   await getPool().query<ResultSetHeader>(
     `INSERT INTO course_notes (id, user_id, course_id, content, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [data.id, userId, data.courseId, data.content, data.createdAt, data.updatedAt],
+    [
+      data.id,
+      userId,
+      data.courseId,
+      data.content,
+      toDbDatetime(data.createdAt),
+      toDbDatetime(data.updatedAt),
+    ],
   );
 }
 
@@ -146,7 +166,7 @@ export async function updateNote(
     args.push(patch.content);
   }
   sets.push(`updated_at = ?`);
-  args.push(patch.updatedAt, userId, id);
+  args.push(toDbDatetime(patch.updatedAt), userId, id);
   const [res] = await getPool().query<ResultSetHeader>(
     `UPDATE course_notes SET ${sets.join(", ")} WHERE user_id = ? AND id = ?`,
     args,
@@ -203,9 +223,9 @@ export async function insertTodo(
       data.content,
       data.status,
       data.dueDate,
-      data.createdAt,
-      data.completedAt,
-      data.updatedAt,
+      toDbDatetime(data.createdAt),
+      data.completedAt ? toDbDatetime(data.completedAt) : data.completedAt,
+      toDbDatetime(data.updatedAt),
     ],
   );
 }
@@ -236,7 +256,7 @@ export async function updateTodo(
     }
   }
   sets.push(`updated_at = ?`);
-  args.push(patch.updatedAt, userId, id);
+  args.push(toDbDatetime(patch.updatedAt), userId, id);
   const [res] = await getPool().query<ResultSetHeader>(
     `UPDATE course_todos SET ${sets.join(", ")} WHERE user_id = ? AND id = ?`,
     args,
@@ -291,8 +311,8 @@ export async function upsertAttendance(
       data.week,
       data.day,
       data.status,
-      data.createdAt,
-      data.updatedAt,
+      toDbDatetime(data.createdAt),
+      toDbDatetime(data.updatedAt),
     ],
   );
 }
@@ -309,7 +329,7 @@ export async function updateAttendance(
     args.push(patch.status);
   }
   sets.push(`updated_at = ?`);
-  args.push(patch.updatedAt, userId, id);
+  args.push(toDbDatetime(patch.updatedAt), userId, id);
   const [res] = await getPool().query<ResultSetHeader>(
     `UPDATE course_attendances SET ${sets.join(", ")} WHERE user_id = ? AND id = ?`,
     args,
@@ -350,7 +370,7 @@ export async function upsertTombstone(
     `INSERT INTO course_ext_tombstones (user_id, entity, entity_id, deleted_at)
      VALUES (?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE deleted_at = VALUES(deleted_at)`,
-    [userId, entity, entityId, deletedAt],
+    [userId, entity, entityId, toDbDatetime(deletedAt)],
   );
 }
 
