@@ -1,10 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
-import { AppError, ErrorCodes, isAppError } from "../lib/errors.js";
+import { ErrorCodes, isAppError } from "../lib/errors.js";
 import { fail } from "../lib/response.js";
 import { createLogger } from "../lib/logger.js";
 
-export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
     const message = err.issues[0]?.message ?? "参数校验失败";
     return fail(res, 400, ErrorCodes.VALIDATION, message);
@@ -13,7 +13,18 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return fail(res, err.httpStatus, err.code, err.message, err.data);
   }
   try {
-    createLogger().error({ err }, "unhandled error");
+    createLogger().error(
+      {
+        err,
+        requestId: req.requestId,
+        method: req.method,
+        path: req.path,
+        query: req.query,
+        // 用户 ID 仅在 appAuth 已解析时存在
+        userId: (req as { appAuth?: { uid?: number } }).appAuth?.uid,
+      },
+      "unhandled error",
+    );
   } catch {
     console.error(err);
   }

@@ -804,3 +804,16 @@
 - **修复**：不改 RN。管理端移除 `chart-settings` 卡与相关拉数/助手工具；旧 localStorage 布局中的该 id 由 prefs sanitize 丢弃。Node `settings-distribution` 接口暂保留。
 
 ---
+
+## 2026-09-14 · nongyu-node-server · course-ext 写入接口批量 500
+
+- **现象**：RN 端进入课表页后，后台同步的 `/api/app/course-ext/schedules`、`/notes`、`/attendances` 等 POST/DELETE 接口返回 500（`code=50000`，message=`服务器内部错误`），埋点库 8 月 17 日至 9 月 14 日累计 7000+ 条，容易被用户误以为是「刷新课表」报错。
+- **根因**：生产 MySQL 的 `custom_schedules.color_index` 列（迁移 `007_schedule_color_index.sql`）、`course_attendances.status='nocheck'`（迁移 `008_attendance_nocheck.sql`）以及 `course_ext_tombstones.entity='attendance'`（迁移 `005_course_attendances.sql` 后半）未随 8 月中的代码发布同步执行；服务端写入时命中 `ER_BAD_FIELD_ERROR` / `ER_CHECK_CONSTRAINT_VIOLATED`，被全局错误处理器转成 500。
+- **修复**：
+  1. 代码层不妥协：回滚 `repo.ts` 的运行时 fallback，保持 SQL 与 schema 契约严格一致。
+  2. 新增幂等补全迁移 `migrations/009_course_ext_schema_fix.sql`，通过 `information_schema` 判断后补齐缺失列/CHECK，可重复执行、对已有数据无影响。
+  3. `src/middlewares/common.ts` 全局错误处理器保留 `requestId`、`method`、`path`、`userId` 等上下文，便于 production `journalctl` 直接定位原始 MySQL 错误。
+- **验证**：本地 `pnpm type-check` / `pnpm lint` 通过。
+- **生产操作**：登录生产服务器，在 `/opt/nongyu-node` 执行 `pnpm migrate`（执行前务必备份 MySQL），由 `009_course_ext_schema_fix.sql` 补齐 schema。
+
+---
