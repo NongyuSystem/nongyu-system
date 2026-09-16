@@ -70,29 +70,31 @@ export function WorkspacePage() {
 
   return (
     <div className="mx-auto max-w-[1100px]">
-      <section className="relative overflow-hidden rounded-2xl border border-line-soft bg-surface px-5 py-6 shadow-panel md:px-7 md:py-8">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-brand" aria-hidden />
+      <section className="ny-glass relative rounded-2xl px-4 py-5 sm:px-5 sm:py-6 md:px-7 md:py-8">
         <div
-          className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-brand-muted/70"
+          className="pointer-events-none absolute inset-y-0 left-0 w-1 rounded-l-2xl bg-brand/70"
           aria-hidden
         />
         <p className="text-[11px] font-semibold tracking-[0.14em] text-brand">工作台</p>
-        <h1 className="mt-2 text-[26px] font-semibold leading-8 tracking-tight text-ink md:text-[28px]">
+        <h1 className="mt-2 text-[22px] font-semibold leading-7 tracking-tight text-ink sm:text-[26px] sm:leading-8 md:text-[28px]">
           你好，{name}
         </h1>
         <p className="mt-2 max-w-xl text-[14px] leading-6 text-muted">
-          从这里进入各业务模块。侧栏可随时切换；右上角可打开智慧助手做只读问数。
+          从这里进入各业务模块。
+          <span className="hidden lg:inline">侧栏可随时切换；</span>
+          <span className="lg:hidden">左上角菜单可切换模块；</span>
+          右上角可打开智慧助手做只读问数。
         </p>
       </section>
 
-      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:mt-5 sm:grid-cols-2 lg:grid-cols-3">
         {MODULES.map((mod) => (
           <Link
             key={mod.to}
             to={mod.to}
-            className="group flex items-start gap-3.5 rounded-2xl border border-line-soft bg-surface p-4 shadow-panel transition-[border-color,transform,box-shadow,background-color] duration-150 hover:-translate-y-0.5 hover:border-brand/35 hover:shadow-md active:border-brand/40 active:bg-elev"
+            className="ny-glass ny-glass-lift group flex min-h-[4.5rem] items-start gap-3.5 rounded-2xl p-4"
           >
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-muted text-base text-brand transition-colors group-hover:bg-brand group-hover:text-white group-active:bg-brand group-active:text-white">
+            <span className="ny-module-mark inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-base">
               {mod.icon}
             </span>
             <span className="min-w-0">

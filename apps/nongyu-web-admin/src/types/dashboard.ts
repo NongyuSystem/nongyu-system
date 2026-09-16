@@ -33,6 +33,8 @@ export type TrackOverview = {
   dau: number;
   /** 该业务日最高同时在线（采样峰值）；BFF 缺省按 0 */
   onlinePeak: number;
+  /** 首次达到该峰值的 UTC ms；未知为 null */
+  onlinePeakAtMs: number | null;
   crashCount: number;
   appOpenCount: number;
   screenViewCount: number;

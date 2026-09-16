@@ -22,7 +22,7 @@ export function ChartCard({
   layoutEditable?: boolean;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-2xl border border-line-soft bg-surface p-3.5 shadow-panel">
+    <div className="ny-glass flex h-full min-h-0 flex-col rounded-2xl p-3.5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div
           className={

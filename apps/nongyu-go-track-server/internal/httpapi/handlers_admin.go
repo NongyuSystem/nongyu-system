@@ -42,7 +42,7 @@ func (a *API) handleOverview(w http.ResponseWriter, r *http.Request) {
 		screens, err3 := a.store.CountByType(ctx, a.store.ReadDB(), date, "screen_view")
 		clicks, err4 := a.store.CountByType(ctx, a.store.ReadDB(), date, "button_click")
 		crashes, err5 := a.store.CountByType(ctx, a.store.ReadDB(), date, "crash")
-		onlinePeak, err6 := a.liveTrendValue(ctx, "online_peak", date)
+		onlinePeak, peakAtMs, err6 := a.liveOnlinePeak(ctx, date)
 		if err1 != nil || err2 != nil || err3 != nil || err4 != nil || err5 != nil || err6 != nil {
 			writeFail(w, http.StatusInternalServerError, "INTERNAL", "live query failed")
 			return
@@ -55,6 +55,7 @@ func (a *API) handleOverview(w http.ResponseWriter, r *http.Request) {
 			"screen_view_count":  screens,
 			"button_click_count": clicks,
 			"online_peak":        onlinePeak,
+			"online_peak_at_ms":  peakAtMs,
 		}
 		// 空结果不缓存，避免「先查到 0 → 事件刚写入仍吃缓存」
 		if dau > 0 || appOpen > 0 || screens > 0 || clicks > 0 || crashes > 0 || onlinePeak > 0 {
@@ -77,6 +78,7 @@ func (a *API) handleOverview(w http.ResponseWriter, r *http.Request) {
 		"screen_view_count":  metrics["screen_view_count"],
 		"button_click_count": metrics["button_click_count"],
 		"online_peak":        metrics["online_peak"],
+		"online_peak_at_ms":  metricAtOrNil(metrics),
 	})
 }
 
@@ -156,6 +158,32 @@ func (a *API) liveTrendValue(ctx context.Context, metric, date string) (int64, e
 	default:
 		return 0, nil
 	}
+}
+
+func metricAtOrNil(metrics map[string]int64) any {
+	v, ok := metrics["online_peak_at_ms"]
+	if !ok || v <= 0 {
+		return nil
+	}
+	return v
+}
+
+// liveOnlinePeak 今日峰值人数与首次达到时刻。live 高于已存峰值时用请求时刻，不写库。
+func (a *API) liveOnlinePeak(ctx context.Context, date string) (int64, any, error) {
+	online, err := a.store.CountOnline(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	metrics, err := a.store.GetMetricMap(ctx, date)
+	if err != nil {
+		return 0, nil, err
+	}
+	peak := metrics["online_peak"]
+	at := metricAtOrNil(metrics)
+	if online > peak {
+		return online, a.now().UTC().UnixMilli(), nil
+	}
+	return peak, at, nil
 }
 
 func (a *API) handleDims(w http.ResponseWriter, r *http.Request) {

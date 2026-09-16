@@ -6,6 +6,21 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
+/** 今日最高同时在线 KPI 辅文：首次达到时刻（上海） */
+export function formatOnlinePeakHint(peak: number, atMs: number | null): string {
+  if (atMs !== null && Number.isFinite(atMs) && atMs > 0) {
+    const clock = new Intl.DateTimeFormat("zh-CN", {
+      timeZone: SHANGHAI,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(atMs));
+    return `今日 ${clock} 达到`;
+  }
+  if (peak > 0) return "峰值时刻未知";
+  return "今日尚未形成峰值";
+}
+
 /** 业务日（上海）今天 YYYY-MM-DD */
 export function businessToday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {

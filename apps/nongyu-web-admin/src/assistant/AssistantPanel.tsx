@@ -154,7 +154,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
         type="button"
-        className={`absolute inset-0 bg-ink/20 backdrop-blur-[1px] ${
+        className={`absolute inset-0 bg-ink/30 backdrop-blur-sm ${
           resizing ? "pointer-events-none" : ""
         }`}
         aria-label="关闭智慧助手"
@@ -162,7 +162,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
       />
       <div
         ref={panelRef}
-        className="relative z-10 flex h-full max-h-[100dvh] flex-col border-l border-line-soft bg-canvas shadow-panel"
+        className="ny-glass ny-glass-chrome relative z-10 flex h-full max-h-[100dvh] flex-col overscroll-contain rounded-none"
         style={{
           width: typeof drawerWidth === "number" ? `${drawerWidth}px` : drawerWidth,
         }}
@@ -179,10 +179,10 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
           />
         ) : null}
 
-        <header className="flex h-14 shrink-0 items-center gap-1 border-b border-line-soft bg-surface/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+        <header className="flex min-h-14 shrink-0 items-center gap-0.5 border-b border-black/[0.06] px-1.5 pt-[env(safe-area-inset-top)] sm:gap-1 sm:px-2">
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-elev"
+            className="ny-hit inline-flex h-11 w-11 items-center justify-center rounded-full text-ink transition-colors hover:bg-elev"
             aria-label="关闭"
             onClick={onClose}
           >
@@ -194,7 +194,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
           </div>
           <button
             type="button"
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-elev ${
+            className={`ny-hit inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-elev ${
               tab === "sessions" ? "text-brand" : "text-ink"
             }`}
             aria-label="会话"
@@ -204,7 +204,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
           </button>
           <button
             type="button"
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-elev ${
+            className={`ny-hit inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-elev ${
               tab === "settings" ? "text-brand" : "text-ink"
             }`}
             aria-label="模型设置"
@@ -214,7 +214,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
           </button>
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-elev"
+            className="ny-hit inline-flex h-11 w-11 items-center justify-center rounded-full text-ink transition-colors hover:bg-elev"
             aria-label="新对话"
             onClick={() => {
               if (!userId) return;

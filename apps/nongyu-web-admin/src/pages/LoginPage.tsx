@@ -173,35 +173,29 @@ export function LoginPage() {
 
   if (handoffLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-canvas px-4">
+      <div className="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-3 px-4">
+        <div className="ny-canvas-wash" aria-hidden />
         <Spin size="large" />
-        <p className="text-sm text-muted">正在从 App 进入管理台…</p>
+        <p className="relative text-sm text-muted">正在从 App 进入管理台…</p>
       </div>
     );
   }
 
   return (
-    <div className="relative flex min-h-screen min-h-[100dvh] items-center justify-center overflow-hidden bg-canvas px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(2.5rem,env(safe-area-inset-top))]">
-      <div
-        className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-brand-muted/80 blur-2xl"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -right-16 bottom-0 h-64 w-64 rounded-full bg-brand-mist/40 blur-2xl"
-        aria-hidden
-      />
+    <div className="relative z-[1] flex min-h-screen min-h-[100dvh] items-center justify-center overflow-x-clip px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:py-10 sm:pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:pt-[max(2.5rem,env(safe-area-inset-top))]">
+      <div className="ny-canvas-wash" aria-hidden />
 
-      <div className="relative w-full max-w-[400px] overflow-hidden rounded-2xl border border-line-soft bg-surface shadow-panel">
+      <div className="ny-glass relative w-full max-w-[400px] rounded-2xl">
         <div className="flex">
-          <div className="w-1.5 shrink-0 bg-brand" aria-hidden />
-          <div className="min-w-0 flex-1 p-6 md:p-7">
+          <div className="w-1 shrink-0 rounded-l-2xl bg-brand/70" aria-hidden />
+          <div className="min-w-0 flex-1 p-5 sm:p-6 md:p-7">
             <div className="flex items-center gap-3">
               <NongyuLogo size={48} className="shrink-0 shadow-sm" />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
                   Nongyu Admin
                 </p>
-                <h1 className="mt-1 text-[24px] font-semibold leading-8 tracking-tight text-ink">
+                <h1 className="mt-1 text-[22px] font-semibold leading-7 tracking-tight text-ink sm:text-[24px] sm:leading-8">
                   农屿管理台
                 </h1>
               </div>

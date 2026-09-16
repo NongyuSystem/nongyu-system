@@ -24,6 +24,7 @@ import {
   GRID_ROW_HEIGHT,
   type WidgetId,
 } from "../../lib/dashboardLayout";
+import { formatOnlinePeakHint } from "../../lib/perfRange";
 import { ActiveDaysRankingCard } from "./ActiveDaysRankingCard";
 import { ChartCard } from "./ChartCard";
 import { CrashesTable } from "./CrashesTable";
@@ -306,11 +307,17 @@ function widgetBody(
     );
   }
   if (id === "kpi-online-peak") {
+    const peak = data.trackOverview ? (data.trackOverview.onlinePeak ?? 0) : null;
     return (
       <KpiCard
         title="今日最高同时在线"
-        value={data.trackOverview ? (data.trackOverview.onlinePeak ?? 0) : null}
-        hint="当日定时采样峰值"
+        value={peak}
+        hint={
+          peak === null
+            ? "当日定时采样峰值"
+            : formatOnlinePeakHint(peak, data.trackOverview?.onlinePeakAtMs ?? null)
+        }
+        hintTitle="当日定时采样峰值；时刻为首次达到该人数的时间"
         loading={args.trackLoading}
         error={args.trackError}
         layoutEditable={layoutEditable}

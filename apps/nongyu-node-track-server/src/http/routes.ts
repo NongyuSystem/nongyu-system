@@ -290,7 +290,11 @@ export async function registerRoutes(app: FastifyInstance, deps: ApiDeps): Promi
             const screens = screensAll - webScreens;
             const clicks = countByType(deps.store, date, "button_click");
             const crashes = countByType(deps.store, date, "crash");
-            const onlinePeak = liveTrendValue(deps.store, "online_peak", date);
+            const { peak: onlinePeak, atMs: onlinePeakAtMs } = liveOnlinePeak(
+              deps.store,
+              date,
+              now().getTime(),
+            );
             const liveData = {
               date,
               dau,
@@ -300,6 +304,7 @@ export async function registerRoutes(app: FastifyInstance, deps: ApiDeps): Promi
               button_click_count: clicks,
               web_screen_view_count: webScreens,
               online_peak: onlinePeak,
+              online_peak_at_ms: onlinePeakAtMs,
             };
             if (
               dau > 0 ||
@@ -330,6 +335,7 @@ export async function registerRoutes(app: FastifyInstance, deps: ApiDeps): Promi
             button_click_count: metrics.button_click_count ?? 0,
             web_screen_view_count: webScreens,
             online_peak: metrics.online_peak ?? 0,
+            online_peak_at_ms: metricAtOrNull(metrics.online_peak_at_ms),
           });
         } catch {
           writeFail(reply, 500, "INTERNAL", "query failed");
@@ -565,6 +571,23 @@ export async function registerRoutes(app: FastifyInstance, deps: ApiDeps): Promi
     },
     { prefix: "/v1/admin" },
   );
+}
+
+function metricAtOrNull(value: number | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function liveOnlinePeak(
+  store: Store,
+  date: string,
+  nowMs: number,
+): { peak: number; atMs: number | null } {
+  const online = countOnline(store);
+  const metrics = getMetricMap(store, date);
+  const stored = metrics.online_peak ?? 0;
+  const storedAt = metricAtOrNull(metrics.online_peak_at_ms);
+  if (online > stored) return { peak: online, atMs: nowMs };
+  return { peak: stored, atMs: storedAt };
 }
 
 function liveTrendValue(store: Store, metric: string, date: string): number {

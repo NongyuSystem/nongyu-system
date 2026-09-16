@@ -41,7 +41,7 @@ export function RelatedSitesPage() {
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex min-h-[5.5rem] flex-col justify-between rounded-2xl border border-line-soft bg-surface p-4 shadow-panel transition-colors hover:border-brand/40 hover:bg-brand-muted/40"
+                className="ny-glass ny-glass-lift group flex min-h-[5.5rem] flex-col justify-between rounded-2xl p-4"
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-[15px] font-semibold text-ink">{item.name}</span>
@@ -77,7 +77,7 @@ export function RelatedSitesPage() {
                 <div className="flex h-7 items-center justify-center bg-ink">
                   <span className="h-1.5 w-16 rounded-full bg-white/25" />
                 </div>
-                <div className="bg-canvas" style={{ height: 780 }}>
+                <div className="bg-canvas h-[min(70dvh,780px)] sm:h-[780px]">
                   <iframe
                     title="农屿官网手机预览"
                     src={RELATED_SITE_NONGYU_URL}

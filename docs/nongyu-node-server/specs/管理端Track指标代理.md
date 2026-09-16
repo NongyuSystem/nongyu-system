@@ -86,11 +86,12 @@
   appOpenCount: number;
   screenViewCount: number;
   onlinePeak: number; // Track online_peak；缺省 0
+  onlinePeakAtMs: number | null; // Track online_peak_at_ms；未知 null
   buttonClickCount?: number;
 }
 ```
 
-忽略 Track 的 `online`（在线人数只读本库）。`onlinePeak` 为当日最高同时在线（来自 Track `online_peak`）。
+忽略 Track 的 `online`（在线人数只读本库）。`onlinePeak` 为当日最高同时在线（来自 Track `online_peak`）。`onlinePeakAtMs` 为首次达到该峰值的 UTC 毫秒；缺省或非法为 `null`。
 
 ### 4.5 `GET /api/admin/track/dims`
 

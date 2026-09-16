@@ -4,7 +4,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { insertEvent } from "./events.js";
 import { openStore } from "./db.js";
-import { percentile, perfDimsInRange, perfDurationsInRange } from "./metrics.js";
+import {
+  bumpPeak,
+  getMetricMap,
+  percentile,
+  perfDimsInRange,
+  perfDurationsInRange,
+} from "./metrics.js";
 
 describe("perfDimsInRange", () => {
   const dirs: string[] = [];
@@ -79,6 +85,42 @@ describe("perfDimsInRange", () => {
     });
     expect(map.has("course_week_first_paint")).toBe(true);
     expect(map.has("cwv_lcp")).toBe(false);
+    store.close();
+  });
+});
+
+describe("bumpPeak first occurrence", () => {
+  const dirs: string[] = [];
+
+  afterEach(() => {
+    while (dirs.length) {
+      rmSync(dirs.pop()!, { recursive: true, force: true });
+    }
+  });
+
+  function open() {
+    const dir = mkdtempSync(join(tmpdir(), "ny-peak-"));
+    dirs.push(dir);
+    return openStore(join(dir, "track.db"));
+  }
+
+  it("records first rise and ignores ties or drops", () => {
+    const store = open();
+    const date = "2026-09-16";
+    bumpPeak(store, date, 0, 1000);
+    expect(getMetricMap(store, date)).toEqual({ online_peak: 0 });
+
+    bumpPeak(store, date, 10, 2000);
+    expect(getMetricMap(store, date)).toEqual({ online_peak: 10, online_peak_at_ms: 2000 });
+
+    bumpPeak(store, date, 10, 3000);
+    expect(getMetricMap(store, date).online_peak_at_ms).toBe(2000);
+
+    bumpPeak(store, date, 8, 4000);
+    expect(getMetricMap(store, date)).toEqual({ online_peak: 10, online_peak_at_ms: 2000 });
+
+    bumpPeak(store, date, 12, 5000);
+    expect(getMetricMap(store, date)).toEqual({ online_peak: 12, online_peak_at_ms: 5000 });
     store.close();
   });
 });

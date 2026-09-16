@@ -43,6 +43,7 @@ ON CONFLICT(stat_date, metric_key) DO UPDATE SET
     .run(date, key, value, nowMs);
 }
 
+/** 峰值严格升高时写入首次达到时刻；并列与回落不改时刻。 */
 export function bumpPeak(store: Store, date: string, sample: number, nowMs: number): void {
   store.withWriteTx(() => {
     const current = store.db
@@ -50,9 +51,14 @@ export function bumpPeak(store: Store, date: string, sample: number, nowMs: numb
         `SELECT metric_value FROM daily_metrics WHERE stat_date=? AND metric_key='online_peak'`,
       )
       .get(date) as { metric_value: number } | undefined;
-    let val = sample;
-    if (current && current.metric_value > val) val = current.metric_value;
-    upsertMetric(store, date, "online_peak", val, nowMs);
+    if (!current) {
+      upsertMetric(store, date, "online_peak", sample, nowMs);
+      if (sample > 0) upsertMetric(store, date, "online_peak_at_ms", nowMs, nowMs);
+      return;
+    }
+    if (sample <= current.metric_value) return;
+    upsertMetric(store, date, "online_peak", sample, nowMs);
+    upsertMetric(store, date, "online_peak_at_ms", nowMs, nowMs);
   });
 }
 

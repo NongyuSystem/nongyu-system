@@ -47,6 +47,7 @@ ON CONFLICT(stat_date, metric_key) DO UPDATE SET
 	return nil
 }
 
+// BumpPeak 在采样高于当日峰值时更新 online_peak，并记下首次达到该值的 UTC ms。
 func (s *Store) BumpPeak(ctx context.Context, date string, sample, nowMs int64) error {
 	return s.WithWriteTx(ctx, func(tx *sql.Tx) error {
 		var current sql.NullInt64
@@ -55,11 +56,24 @@ SELECT metric_value FROM daily_metrics WHERE stat_date=? AND metric_key='online_
 		if err != nil && err != sql.ErrNoRows {
 			return err
 		}
-		val := sample
-		if current.Valid && current.Int64 > val {
-			val = current.Int64
+		// 无行且样本为 0：只记峰值 0，不写时刻（尚未形成有意义峰值）
+		if !current.Valid {
+			if err := s.UpsertMetric(ctx, tx, date, "online_peak", sample, nowMs); err != nil {
+				return err
+			}
+			if sample <= 0 {
+				return nil
+			}
+			return s.UpsertMetric(ctx, tx, date, "online_peak_at_ms", nowMs, nowMs)
 		}
-		return s.UpsertMetric(ctx, tx, date, "online_peak", val, nowMs)
+		// 未升高：并列取首次，下降忽略；禁止用 nowMs 刷新冒充峰值时刻
+		if sample <= current.Int64 {
+			return nil
+		}
+		if err := s.UpsertMetric(ctx, tx, date, "online_peak", sample, nowMs); err != nil {
+			return err
+		}
+		return s.UpsertMetric(ctx, tx, date, "online_peak_at_ms", nowMs, nowMs)
 	})
 }
 

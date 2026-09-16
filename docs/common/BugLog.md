@@ -1,5 +1,19 @@
 ---
 
+## 2026-09-16 · nongyu-web-admin · 顶栏随页面滚动
+
+- **现象**：登录后「农屿管理台」所在顶栏会跟着正文一起滚走，没有贴在窗口顶部。
+- **根因**：顶栏用 `position: sticky`。壳层根节点有 `overflow-x-hidden`（另一轴会变成滚动容器），霜面 `backdrop-filter` 再建一层包含块，sticky 相对整页内容而不是视口，表现成普通文档流。
+- **修复**：顶栏改为 `position: fixed`（桌面 `left` 与侧栏同宽），主内容区用 `padding-top` 让出栏高。
+
+---
+
+- **现象**：现网管理端数据大屏「今日日活 / 今日最高同时在线」等一整组 Track 指标显示「埋点指标暂不可用」；本库 KPI（总用户等）正常。
+- **根因**：Track 机（`47.108.74.61`）Let’s Encrypt IP 短寿证书已过期；Node `TRACK_BASE_URL` 走 HTTPS，TLS 握手失败映射为 `TRACK_UNAVAILABLE`。acme.sh ARI 建议续期日已过，但自动续期未成功落证；仅 `reload nginx` 有时未切到新证。
+- **修复**：在 Track 机执行 `acme.sh --renew` 签发新证（有效至约 2026-09-23），`systemctl restart nginx`；将 `Le_ReloadCmd` 改为 `systemctl restart nginx`；恢复/修正 acme cron，并把输出写入 `/var/log/acme-cron.log`。外网 `curl https://47.108.74.61/health` 已恢复 200。
+
+---
+
 ## 2026-09-05 · nongyu-web-site · 官网 PV / Web Vitals 大屏无数据
 
 - **现象**：管理端大屏「今日官网访问」为 0，「官网 Web Vitals」空白；App 埋点指标正常。

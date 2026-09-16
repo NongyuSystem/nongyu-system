@@ -41,7 +41,7 @@ Track 侧在线辅助，不替代业务库在线字段。
 
 ## daily_metrics
 历史日无维度指标。PK (stat_date, metric_key)。列：stat_date、metric_key、metric_value INTEGER、updated_at_ms。
-已知 metric_key：dau、crash_count、app_open_count、screen_view_count、online_peak。
+已知 metric_key：dau、crash_count、app_open_count、screen_view_count、online_peak、online_peak_at_ms（首次达到当日峰值的 UTC ms）。
 今日概览类查询不要依赖当日尚未聚合的本表。
 
 ## daily_dims

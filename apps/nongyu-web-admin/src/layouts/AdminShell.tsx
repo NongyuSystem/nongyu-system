@@ -168,10 +168,11 @@ export function AdminShell() {
   ];
 
   return (
-    <div className="min-h-screen min-h-[100dvh] overflow-x-hidden bg-canvas">
+    <div className="relative z-[1] min-h-screen min-h-[100dvh] bg-transparent">
+      <div className="ny-canvas-wash" aria-hidden />
       {isLg ? (
         <aside
-          className="fixed bottom-0 left-0 top-0 z-20 flex flex-col border-r border-line-soft bg-surface pt-[env(safe-area-inset-top)]"
+          className="ny-glass ny-glass-chrome fixed bottom-0 left-0 top-0 z-20 flex flex-col rounded-none border-y-0 border-l-0 border-r pt-[env(safe-area-inset-top)]"
           style={{ width: sidebarWidth }}
         >
           <div className="relative flex min-h-0 flex-1 flex-col px-2 py-4">
@@ -212,11 +213,11 @@ export function AdminShell() {
         <div className="fixed inset-0 z-40">
           <button
             type="button"
-            className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-ink/30 backdrop-blur-sm"
             aria-label="关闭菜单"
             onClick={() => setIsDrawerOpen(false)}
           />
-          <div className="absolute bottom-0 left-0 top-0 flex w-[min(280px,86vw)] flex-col border-r border-line-soft bg-surface px-2 pb-[env(safe-area-inset-bottom)] pt-[max(1rem,env(safe-area-inset-top))] shadow-panel">
+          <div className="ny-glass ny-glass-chrome absolute bottom-0 left-0 top-0 flex w-[min(280px,86vw)] flex-col overscroll-contain rounded-none px-2 pb-[env(safe-area-inset-bottom)] pt-[max(1rem,env(safe-area-inset-top))]">
             <BrandBlock />
             <div className="min-h-0 flex-1 overflow-y-auto">
               <SideMenu selectedKey={location.pathname} onSelect={handleSelect} />
@@ -225,65 +226,70 @@ export function AdminShell() {
         </div>
       ) : null}
 
-      <div
-        className="flex min-h-screen min-h-[100dvh] min-w-0 flex-col"
-        style={isLg ? { marginLeft: sidebarWidth } : undefined}
+      {/* 顶栏与侧栏同为 fixed：sticky 会被 overflow-x-hidden 与 backdrop-filter 带跑 */}
+      <header
+        className="ny-glass ny-glass-chrome fixed top-0 z-30 flex min-h-14 items-center justify-between gap-2 rounded-none border-x-0 border-t-0 px-3 pb-0 pt-[env(safe-area-inset-top)] sm:gap-3 sm:px-4 md:px-6"
+        style={{ left: isLg ? sidebarWidth : 0, right: 0 }}
       >
-        <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between gap-3 border-b border-line-soft bg-surface/90 px-4 pb-0 pt-[env(safe-area-inset-top)] backdrop-blur-md md:px-6">
-          <div className="flex h-14 min-w-0 items-center gap-2.5">
-            {isLg ? null : (
-              <button
-                type="button"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line-soft bg-surface text-ink transition-colors hover:bg-elev active:bg-elev"
-                aria-label="打开菜单"
-                onClick={() => setIsDrawerOpen(true)}
-              >
-                <MenuOutlined />
-              </button>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold leading-5 text-ink">农屿管理台</p>
-            </div>
-          </div>
-
-          <div className="flex h-14 items-center gap-2">
+        <div className="flex h-14 min-w-0 items-center gap-2.5">
+          {isLg ? null : (
             <button
               type="button"
-              className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-ink transition-colors active:bg-elev ${
-                assistantOpen
-                  ? "border-brand bg-brand-muted text-brand"
-                  : "border-line-soft bg-surface hover:bg-elev"
-              }`}
-              aria-label={assistantOpen ? "关闭智慧助手" : "打开智慧助手"}
-              onClick={() => {
-                setAssistantOpen((prev) => {
-                  const next = !prev;
-                  if (next) setAssistantEverOpened(true);
-                  return next;
-                });
-              }}
+              className="ny-hit inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line-soft bg-surface text-ink transition-colors hover:bg-elev active:bg-elev"
+              aria-label="打开菜单"
+              onClick={() => setIsDrawerOpen(true)}
             >
-              <RobotOutlined />
+              <MenuOutlined />
             </button>
-
-            <Dropdown trigger={["click"]} menu={{ items: userMenuItems }}>
-              <button
-                type="button"
-                className="inline-flex h-11 max-w-[9.5rem] items-center gap-2 rounded-xl border border-line-soft bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-elev active:bg-elev sm:max-w-none"
-              >
-                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-muted text-[11px] font-semibold text-brand">
-                  {userName.slice(0, 1)}
-                </span>
-                <span className="truncate">{userName}</span>
-                {isBootstrap ? (
-                  <span className="hidden text-xs font-normal text-muted sm:inline">未建档</span>
-                ) : null}
-              </button>
-            </Dropdown>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-semibold leading-5 text-ink">农屿管理台</p>
           </div>
-        </header>
+        </div>
 
-        <main className="flex-1 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:px-6 md:py-6">
+        <div className="flex h-14 items-center gap-2">
+          <button
+            type="button"
+            className={`ny-hit inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-ink transition-colors active:bg-elev ${
+              assistantOpen
+                ? "border-brand/40 bg-elev text-brand"
+                : "border-line-soft bg-surface hover:bg-elev"
+            }`}
+            aria-label={assistantOpen ? "关闭智慧助手" : "打开智慧助手"}
+            onClick={() => {
+              setAssistantOpen((prev) => {
+                const next = !prev;
+                if (next) setAssistantEverOpened(true);
+                return next;
+              });
+            }}
+          >
+            <RobotOutlined />
+          </button>
+
+          <Dropdown trigger={["click"]} menu={{ items: userMenuItems }}>
+            <button
+              type="button"
+              aria-label={userName}
+              className="ny-hit inline-flex h-11 max-w-[7.5rem] items-center gap-2 rounded-xl border border-line-soft bg-surface px-2.5 text-sm font-medium text-ink transition-colors hover:bg-elev active:bg-elev sm:max-w-none sm:px-3"
+            >
+              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-muted text-[11px] font-semibold text-brand">
+                {userName.slice(0, 1)}
+              </span>
+              <span className="hidden truncate sm:inline">{userName}</span>
+              {isBootstrap ? (
+                <span className="hidden text-xs font-normal text-muted md:inline">未建档</span>
+              ) : null}
+            </button>
+          </Dropdown>
+        </div>
+      </header>
+
+      <div
+        className="flex min-h-screen min-h-[100dvh] min-w-0 flex-col overflow-x-clip pt-[calc(3.5rem+env(safe-area-inset-top,0px))]"
+        style={isLg ? { marginLeft: sidebarWidth } : undefined}
+      >
+        <main className="flex-1 px-3 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-4 md:px-6 md:py-6">
           {isBootstrap ? (
             <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-[13px] leading-5 text-amber-950">
               当前为超级管理员引导会话：可浏览工作台，业务管理接口需先在农屿 App

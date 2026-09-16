@@ -4,6 +4,7 @@ export function KpiCard({
   title,
   value,
   hint,
+  hintTitle,
   loading,
   error,
   layoutEditable = true,
@@ -11,13 +12,15 @@ export function KpiCard({
   title: string;
   value: number | null;
   hint: string;
+  /** 口径说明，悬停可见 */
+  hintTitle?: string;
   loading: boolean;
   error: string | null;
   /** 窄屏禁拖时隐藏手柄，避免误导 */
   layoutEditable?: boolean;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-2xl border border-line-soft bg-surface p-3.5 shadow-panel">
+    <div className="ny-glass flex h-full min-h-0 flex-col rounded-2xl p-3.5">
       <div
         className={
           layoutEditable
@@ -38,10 +41,12 @@ export function KpiCard({
           <p className="text-[13px] text-muted">加载中…</p>
         ) : (
           <>
-            <p className="text-[28px] font-semibold leading-8 tracking-tight tabular-nums text-ink">
+            <p className="text-[28px] font-semibold leading-8 tracking-tight tabular-nums text-ink sm:text-[32px] sm:leading-9">
               {value === null ? "—" : value.toLocaleString("zh-CN")}
             </p>
-            <p className="mt-1 text-[12px] leading-4 text-muted">{hint}</p>
+            <p className="mt-1 text-[12px] leading-4 text-muted" title={hintTitle}>
+              {hint}
+            </p>
           </>
         )}
       </div>

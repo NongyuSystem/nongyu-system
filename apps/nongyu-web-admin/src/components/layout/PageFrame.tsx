@@ -36,7 +36,7 @@ export function PageFrame({
     <div className={`mx-auto flex w-full max-w-[1400px] min-w-0 flex-col ${className}`.trim()}>
       <div className="mb-4 flex shrink-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <h2 className="text-[22px] font-semibold leading-8 tracking-tight text-ink sm:text-[24px]">
+          <h2 className="text-[20px] font-semibold leading-7 tracking-tight text-ink sm:text-[22px] sm:leading-8 md:text-[24px]">
             {title}
           </h2>
           {description ? (
@@ -55,9 +55,11 @@ export function PageFrame({
           {children}
         </div>
       ) : (
-        <div className="min-w-0 overflow-x-auto rounded-2xl border border-line-soft bg-surface p-3 shadow-panel sm:p-4 md:p-5">
-          {toolbarBlock}
-          {children}
+        <div className="ny-glass min-w-0 rounded-2xl p-3 sm:p-4 md:p-5">
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain">
+            {toolbarBlock}
+            {children}
+          </div>
         </div>
       )}
     </div>

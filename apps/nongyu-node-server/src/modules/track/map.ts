@@ -22,6 +22,13 @@ function asNullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+/** 峰值时刻 UTC ms；缺省/非法/非正数一律 null，禁止当 0。 */
+function asPeakAtMs(value: unknown): number | null {
+  const n = asNullableNumber(value);
+  if (n === null || n <= 0) return null;
+  return n;
+}
+
 /** 去掉 props 中疑似密钥的键，避免大屏把 Token 渲染出来。 */
 export function stripSensitiveProps(props: unknown): Record<string, unknown> | null {
   if (!isRecord(props)) return null;
@@ -40,6 +47,7 @@ export function mapOverview(raw: unknown): {
   appOpenCount: number;
   screenViewCount: number;
   onlinePeak: number;
+  onlinePeakAtMs: number | null;
   buttonClickCount?: number;
   webScreenViewCount?: number;
 } {
@@ -51,6 +59,7 @@ export function mapOverview(raw: unknown): {
     appOpenCount: number;
     screenViewCount: number;
     onlinePeak: number;
+    onlinePeakAtMs: number | null;
     buttonClickCount?: number;
     webScreenViewCount?: number;
   } = {
@@ -60,6 +69,7 @@ export function mapOverview(raw: unknown): {
     appOpenCount: asNumber(record.app_open_count),
     screenViewCount: asNumber(record.screen_view_count),
     onlinePeak: asNumber(record.online_peak),
+    onlinePeakAtMs: asPeakAtMs(record.online_peak_at_ms),
   };
   if (record.button_click_count !== undefined) {
     mapped.buttonClickCount = asNumber(record.button_click_count);

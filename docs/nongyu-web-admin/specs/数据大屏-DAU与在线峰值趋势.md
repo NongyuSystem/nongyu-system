@@ -73,7 +73,7 @@ onlinePeak: number; // 来自 Track online_peak；缺省按 0
 
 | id                        | 标题             | 展示                                                                                  | 数据                                                      |
 | ------------------------- | ---------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `kpi-online-peak`         | 今日最高同时在线 | 大数字；辅文「当日定时采样峰值」                                                      | Track overview `onlinePeak`                               |
+| `kpi-online-peak`         | 今日最高同时在线 | 大数字；辅文峰值时刻见增量 Spec `管理端玻璃拟态排版与峰值时刻.md`                     | Track overview `onlinePeak` + `onlinePeakAtMs`            |
 | `chart-dau-trend`         | 日活趋势         | 平滑折线；卡头 Select：7/30/90/180/365 天，与增长卡同风格；**共用** `trackTrendRange` | `GET /api/admin/track/trend?metric=dau&from=&to=`         |
 | `chart-online-peak-trend` | 最高同时在线趋势 | 同上折线与 Select                                                                     | `GET /api/admin/track/trend?metric=online_peak&from=&to=` |
 
