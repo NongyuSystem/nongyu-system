@@ -1,12 +1,56 @@
 # 复制到服务器 /etc/nginx/conf.d/nongyu-web.conf 后：
-# 1. 把 YOUR_WEB_IP / YOUR_NODE_UPSTREAM / YOUR_TRACK_UPSTREAM 换成实际值
+# 1. 把 YOUR_WEB_DOMAIN / YOUR_WEB_IP / YOUR_NODE_UPSTREAM / YOUR_TRACK_UPSTREAM 换成实际值
+#    域名示例 nongyu.site；IP 示例 101.43.34.229
 #    Node 示例 http://8.137.82.17；Track 示例 https://47.108.74.61（无尾斜杠）
-# 2. nginx -t && systemctl reload nginx
+# 2. 证书由 acme.sh 写入 /etc/nginx/certs/<apex>.fullchain.pem 与 .key
+# 3. nginx -t && systemctl restart nginx
+#
+# :80 在公网 443 未放行前必须继续提供业务（不可全站 301，否则浏览器会跳进超时）
+# 安全组放行 443 后，可将 :80 的业务 location 改为：return 301 https://YOUR_WEB_DOMAIN$request_uri;
+# :443 提供官网 / 管理端 / API 反代 / Track RUM 反代
 
+# --- HTTP：ACME 校验必须走 80；其余跳转到 HTTPS 规范域名 ---
 server {
     listen 80;
     listen [::]:80;
-    server_name YOUR_WEB_IP;
+    server_name YOUR_WEB_DOMAIN www.YOUR_WEB_DOMAIN YOUR_WEB_IP;
+
+    location ^~ /.well-known/acme-challenge/ {
+        default_type text/plain;
+        root /var/www/acme;
+    }
+
+    location / {
+        return 301 https://YOUR_WEB_DOMAIN$request_uri;
+    }
+}
+
+# --- HTTPS www → apex ---
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.YOUR_WEB_DOMAIN;
+
+    ssl_certificate     /etc/nginx/certs/YOUR_WEB_DOMAIN.fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/YOUR_WEB_DOMAIN.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_session_timeout 1d;
+    ssl_session_cache   shared:WEBSSL:10m;
+
+    return 301 https://YOUR_WEB_DOMAIN$request_uri;
+}
+
+# --- HTTPS 业务 ---
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name YOUR_WEB_DOMAIN;
+
+    ssl_certificate     /etc/nginx/certs/YOUR_WEB_DOMAIN.fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/YOUR_WEB_DOMAIN.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_session_timeout 1d;
+    ssl_session_cache   shared:WEBSSL:10m;
 
     # 管理端 LLM 流式：关闭缓冲
     location /api/admin/llm/ {

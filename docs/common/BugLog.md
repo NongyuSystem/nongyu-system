@@ -1,5 +1,29 @@
 ---
 
+## 2026-10-16 · nongyu-web-site / nongyu-web-admin · 官网与管理端整站不可访问
+
+- **现象**：公网 `http(s)://nongyu.site/` 与 `/admin/` 均不可用；机内 80/443 连接拒绝。
+- **根因**：`/etc/nginx/conf.d/nongyu-web.conf` 中 Nginx 变量（`$uri`、`$remote_addr`、`$proxy_host` 等）被掏空，`proxy_set_header` / `try_files` 语法非法。磁盘坏配置在 2026-09-16 已写入，当时进程仍持旧配置；2026-10-16 00:59 acme.sh 续期成功后执行 `systemctl restart nginx`，加载坏配置失败，Nginx 停服约 14 小时。公网 HTTPS 超时另有已知原因：腾讯云安全组未放行 443。
+- **修复**：用完好备份 `nongyu-web.conf.bak.httpacme` 覆盖现网配置并 `systemctl start nginx`；机内/公网 HTTP 官网与管理端恢复 200。将 acme `Le_ReloadCmd` 改为 `nginx -t && systemctl reload nginx`，避免坏配置时 `restart` 先杀进程再起失败导致空窗。同日腾讯云安全组已放行 WEB 机 TCP 443，公网 `https://nongyu.site/` 与 `/admin/` 已验证 200。
+
+---
+
+## 2026-09-16 · nongyu-web-site · 官网 HTTPS 未开通（被当成证书过期）
+
+- **现象**：访问 `https://nongyu.site` 失败；HTTP 官网正常。
+- **根因**：WEB 机从未配置 TLS，Nginx 只监听 80，腾讯云安全组也未放行 443；没有可续的证书。域名证现已签发（有效至 2026-12-15），机内 HTTPS 200；公网 443 仍被安全组丢包。
+- **修复**：acme.sh 为 `nongyu.site` + `www` 签发 Let’s Encrypt 域名证；Nginx `:443` 已就绪，`:80` 在安全组未放行前继续提供 HTTP，避免 301 把用户送进超时；cron 写 `/var/log/acme-cron.log`，换证后 `systemctl restart nginx`。**还需在腾讯云安全组放行 WEB 机 443，之后再改 HTTP 301。**
+
+---
+
+## 2026-09-16 · nongyu-node-server · IP 证书自动续期加固
+
+- **现象**：与 Track 同类风险——cron 输出丢进 `/dev/null`，换证后只 `nginx -s reload`，可能不切新证。
+- **根因**：现网 `Le_ReloadCmd` 为 `nginx -s reload`；crontab 无续期日志。
+- **修复**：`Le_ReloadCmd` 改为 `systemctl restart nginx`；cron 输出写入 `/var/log/acme-cron.log`。
+
+---
+
 ## 2026-09-16 · nongyu-web-admin · 顶栏随页面滚动
 
 - **现象**：登录后「农屿管理台」所在顶栏会跟着正文一起滚走，没有贴在窗口顶部。
@@ -833,5 +857,13 @@
 - **生产操作**：
   - 已执行：备份 MySQL、执行 `009_course_ext_schema_fix.sql`、部署新 `dist`、重启服务。
   - 建议继续观察 10~30 分钟，确认埋点库中 `course-ext` 500 不再新增。
+
+---
+
+## 2026-09-17 · nongyu-web-admin · 大屏请求 301 后 HTTPS 超时
+
+- **现象**：管理端数据大屏全部接口失败；网络面板先 301（disk cache），再 xhr 卡满约 15s。
+- **根因**：开通官网 HTTPS 时曾把 `:80` 做成 301 到 `https://nongyu.site`，但腾讯云安全组未放行 443。浏览器把 301 按 URL 永久缓存；之后虽已恢复 HTTP 直出，客户端仍跟缓存跳到 HTTPS，axios 15s 超时。现网直连 `http://nongyu.site/api/...` 已是 401 JSON，不再 301。
+- **修复**：用户侧清除 `nongyu.site` / `101.43.34.229` 站点数据或禁用缓存后硬刷新。安全组放行 443 前不要再发 301；以后改跳转用 302。
 
 ---
