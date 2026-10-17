@@ -1,11 +1,11 @@
 # 农屿 · GitHub Actions 持续交付
 
-| 项       | 内容                                                                                    |
-| -------- | --------------------------------------------------------------------------------------- |
-| 状态     | 已落地（2026-08-21）                                                                    |
-| 需求类型 | 基建                                                                                    |
-| 范围     | 官网、管理端、Node 业务后端、Go 埋点后端；**不含** RN / EAS / Pushy                     |
-| 原则     | 只做持续交付。CR、lint、单测、type-check 在开发者本机 commit 前完成（husky + 本地门禁） |
+| 项       | 内容                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| 状态     | 已落地（2026-08-21）                                                                               |
+| 需求类型 | 基建                                                                                               |
+| 范围     | 官网、管理端、Node 业务后端、Node 埋点后端（Go 埋点已下线，不在 CD 内）；**不含** RN / EAS / Pushy |
+| 原则     | 只做持续交付。CR、lint、单测、type-check 在开发者本机 commit 前完成（husky + 本地门禁）            |
 
 ---
 
@@ -18,7 +18,7 @@
 | 官网          | `apps/nongyu-web-site/**`                                                                                                      | Vite `dist` → `/var/www/site`，nginx reload   |
 | 管理端        | `apps/nongyu-web-admin/**`、`packages/nongyu-agent-sdk/**`、`packages/nongyu-tool-jiaowu/**`、`packages/nongyu-tool-second/**` | 先编 workspace 依赖再 Vite → `/var/www/admin` |
 | Node 业务后端 | `apps/nongyu-node-server/**`                                                                                                   | `tsup` dist + `package.json`，systemd 重启    |
-| Go 埋点后端   | `apps/nongyu-go-track-server/**`                                                                                               | `linux/amd64` 静态二进制，systemd 重启        |
+| Node 埋点后端 | `apps/nongyu-node-track-server/**`、`packages/nongyu-track-contract/**`                                                        | `tsup` dist + `package.json`，systemd 重启    |
 
 四个 job **互不绑定**：只改官网不会动 Node / Track。可并行。同一目标并发用 `concurrency` 排队，不取消进行中的发布。
 

@@ -7,6 +7,29 @@
 **农屿简介：**
 农屿是一款基于React Native跨端框架开发的支持安卓、IOS双端的智慧校园助手App，旨在解决四川农业大学校内教务相关信息、二课相关信息分散以及查询不便的关键痛点，同时农屿主要打造的核心功能是无广告、高颜值、快启动、功能丰富的课表，并开放了反馈墙和农家大院两大模块来提供用户反馈和交流渠道~
 
+**一句话数据流：**
+
+```
+川农教务/二课系统 ←爬取─ tool-jiaowu / tool-second
+RN App（课表/反馈墙/农家大院/农小屿Agent） ⇄ node-server ⇄ MySQL
+RN App ─埋点上报→ node-track-server（SQLite） ←查询─ web-admin 数据大屏
+```
+
+## 技术栈总览（For仓库访客）
+
+| 端/模块          | 路径                                                | 技术栈                                                                                                                         | 状态                                         |
+| ---------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| 用户端App        | `apps/nongyu-rn-app`                                | Expo + React Native（expo-router、react-query、zustand、mmkv、reanimated）+ Pushy热更新；内嵌 `nongyu-agent-sdk` 做农小屿Agent | 主力产品                                     |
+| Web管理后台      | `apps/nongyu-web-admin`                             | React + Vite + Ant Design + ECharts（数据大屏）；内嵌智慧后台助手                                                              | 线上 `nongyu.site/admin/`                    |
+| 品牌官网         | `apps/nongyu-web-site`                              | Vite 静态站（计划后期精简为单HTML+brotli）                                                                                     | 线上 `nongyu.site/`                          |
+| 业务后端         | `apps/nongyu-node-server`                           | Node + Express + MySQL（mysql2、jose JWT、zod、pino、bcryptjs）                                                                | 线上 systemd `nongyu-node.service`           |
+| 埋点后端（现行） | `apps/nongyu-node-track-server`                     | Node + Fastify + SQLite（better-sqlite3），事件契约见 `packages/nongyu-track-contract`                                         | 线上 Track机 :8081                           |
+| 埋点后端（旧）   | `apps/nongyu-go-track-server`                       | Go + 嵌入式SQLite                                                                                                              | **已下线**，仓库保留只读对照，CD不再发布     |
+| Agent SDK        | `packages/nongyu-agent-sdk`                         | 纯TS跨node/web，RN与Web管理端共用                                                                                              | 在用                                         |
+| 工具库           | `packages/nongyu-tool-jiaowu`、`nongyu-tool-second` | 川农教务/二课系统爬取与解析                                                                                                    | 在用                                         |
+| 工程基建         | 根目录                                              | pnpm workspace + catalog 统一版本、TypeScript、tsup、oxlint/oxfmt、husky+commitlint 本机门禁                                   | —                                            |
+| 持续交付         | `.github/workflows/cd.yml`                          | GitHub Actions 纯CD：push main 按路径构建四端产物并 SSH 部署+健康检查回滚                                                      | 已落地，详见 `docs/common/GitHub持续交付.md` |
+
 **大体项目结构：**
 
 ```plaintext
@@ -14,25 +37,26 @@
 │  README.md（仓库说明文档）
 │
 ├─apps
-│  ├─nongyu-node-server（农屿后端-单体node应用）
+│  ├─nongyu-node-server（农屿业务后端-Express+MySQL）
+│  ├─nongyu-node-track-server（农屿埋点后端-现行-Fastify+SQLite）
+│  ├─nongyu-go-track-server（农屿埋点后端-旧Go实现-已下线仅存档）
 │  ├─nongyu-rn-app（农屿用户端-react native应用）
 │  ├─nongyu-web-admin（农屿管理后台-react网页应用，[点击跳转](http://nongyu.site/admin/)）
-│  ├─nongyu-go-track-server（农屿埋点后端-基于Go+嵌入式SQLite）
-│  └─nongyu-web-site（农屿官网-原生HTML应用，[点击跳转](http://nongyu.site/)）
-├─old-code（旧版本项目源码-作为Agent迁移的参考代码）
+│  └─nongyu-web-site（农屿官网-Vite静态站，[点击跳转](http://nongyu.site/)）
+├─old-code（旧版本项目源码-gitignore不随仓库分发，交接方单独保管）
 └─packages
-    ├─nongyu-agent-cli（农屿Agent命令行工具-node.js应用，主要是用于开发sdk期间的测试）
-    ├─nongyu-agent-gui（农屿Agent图形界面工具-react小应用，暂无业务引用此包，后期考虑删除或者升级）
-    ├─nongyu-agent-sdk（农屿AgentSDK-纯JS工具库-跨node和web，目前Web管理端和RN用户端均基于其做Agent）
+    ├─nongyu-agent-cli（农屿Agent命令行工具-node.js应用，用于开发sdk期间的测试）
+    ├─nongyu-agent-sdk（农屿AgentSDK-纯TS库-跨node和web，Web管理端和RN用户端均基于其做Agent）
     ├─nongyu-tool-jiaowu（农屿工具集-川农教务系统）
-    └─nongyu-tool-second（农屿工具集-川农二课系统）
+    ├─nongyu-tool-second（农屿工具集-川农二课系统）
+    └─nongyu-track-contract（埋点事件类型契约-RN Telemetry ↔ Track Server）
 ```
 
 ## 技术概览（For仓库访客）
 
 #### 单仓管理方式
 
-采用基于pnpm的meonorepo（单仓架构管理）
+采用基于pnpm的monorepo（单仓架构管理）
 monorepo的优势为：
 
 1. 便于统一管理和维护全仓相同依赖的版本（基于catalog特性）
@@ -73,8 +97,8 @@ AI编码经验参考：docs\common\AICodingHarness实践.md
 方法：
 
 - RN客户端，封装埋点SDK（埋点数据的采集存储并上报）
-- Go+嵌入式SQLite（埋点数据的处理和存储）
-- Web管理端（埋点数据的消费，通过Echats图表渲染大屏查看和分析数据）
+- Node埋点服务（Fastify+SQLite，`nongyu-node-track-server`；2026-09前为Go实现，已迁移，迁移档案见 `docs/nongyu-go-track-server/`）
+- Web管理端（埋点数据的消费，通过Echarts图表渲染大屏查看和分析数据）
 
 #### 版本管理和控制
 
@@ -83,12 +107,15 @@ App的版本管理区别于Web网页的版本管理，后者修改服务器代�
 - 对于原生壳子的更新，必须要重新安装应用（暂不了解壳子代码的无感替换详情），落到农屿的RN壳子，若引入了新的原生依赖则需要更新外部壳子
 - 对于JS代码的更新，可基于封装好的工具实现静默更新，用户无感
 
-农屿基于Pushy做版本管理和控制
+农屿基于Pushy做版本管理和控制（**不走GitHub CD**，RN发版/EAS/Pushy为手动流程，详见 `docs/common/运维手册.md`）
 
 ## TodoList（For 农屿Owner、Developer）
 
-- [ ] 农屿客户端Agent（架构升级，将不同功能模块拆成独立子Agent，主要是为了省Token，避免用不到的工具和编排提示词占据上下文，属于逻辑优化，本版本必做；AI回复气泡的markdown流式渲染，当前为支持流式渲染文本本身，但markdown的渲染需等待完整markdown产生后才渲染，属于UI优化，本版本尽量做；A2UI架构调整，当前基于工具注册UI在AI回复中渲染对应的业务UI组件，问题主要是不能和对应文本配套交错展示，只能都堆在气泡底部展示，用户信息获取体验割裂，属于UI优化，本版本尽量做；长上下文管理策略目前采用达到阈值就触发语义压缩，即摘要方案，没有充足的用户体验来验证方案可用性，后期考虑基于用户反馈升级上下文管理策略，属于逻辑优化，本版本选做；RAG机制缺乏，设想是将川农相关公众号文章做成知识库供Agent检索注入，实现以新生为主要群体的用户可以通过农屿AI来查询川农信息，初步技术方案是自部署小参数向量模型，自己搭建整套RAG体系，服务器已就绪，属于功能增强优化，良好预期是本学期内做完，本版本选做；将全部操作接入Agent，目前只接入了如设置相关的App操作功能，本版本必做；版本更新部分还没测试，本版本必做）
-- [ ] 农屿Web管理端（整套UI再优化一版、移动端适配再优化一版、智慧后台助手的交互和UI再优化一版，智慧后台助手的A2UI逻辑可等RN端跑通后同步更新、全站文本文案检查和更改、功能查漏补缺、构建优化，当前半成品版本的首屏太慢了，初步判断是未做良好分包，本版本必做优化）
-- [ ] nongyu-agent-sdk（后期考虑基于piagent源码改造，在不影响外部接口的情况下修改内部逻辑，整体代码方向基于piagent+vercel的ai-sdk，本版本选做）
-- [ ] 农屿官网（UI再优化一版、文案待我亲自写、相关图片和动图等正式版发布再截图、正式版安卓安装包部署到服务器、IOS分发通过IOS的testflight测试是否可用；当前是基于Vite的，后续改为单HTML页面然后启用brotil压缩即可）
-- [ ] CI/CD基建（基于Github的Action功能搭建CI/CD，主要便于农屿官网和农屿后台代码变更的便捷部署）
+> 2026-10 接手盘点时逐项核实；已完成项直接移除，未完成项保留。存疑项标注（需与前负责人确认）。
+
+- [ ] 农屿客户端Agent：模块化拆分子Agent省Token（必做）；A2UI与文本交错展示（尽量）；长上下文摘要压缩策略的用户验证（选做）；RAG川农公众号知识库（选做，服务器已就绪）；全部操作接入Agent工具注册（必做）；版本更新链路测试（必做）
+- [ ] 农屿Web管理端：整套UI/移动端适配再优化一版；智慧后台助手交互UI优化；全站文案检查；构建优化——首屏太慢，需分包（必做）
+- [ ] nongyu-agent-sdk：考虑基于piagent+vercel ai-sdk方向改造内部逻辑（选做）
+- [ ] 农屿官网：UI再优化、正式文案、正式版APK上服务器、TestFlight分发验证；后续精简为单HTML+brotli
+- [x] CI/CD基建：已落地（GitHub Actions 纯CD，见 `docs/common/GitHub持续交付.md`；埋点后端已从Go迁Node并同步CD）
+- [ ] 交接收尾：收回三台服务器/Actions Secrets/Pushy·EAS·开发者账号/old-code归档（详见 `docs/common/运维手册.md` 待填清单）
