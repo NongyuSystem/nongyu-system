@@ -73,6 +73,14 @@ const envSchema = z.object({
   LLM_POOL_LEASE_MAX_MS: z.coerce.number().int().positive().default(300_000),
   /** AES 密钥材料；池开启时加解密路径要求长度 ≥16 */
   LLM_KEY_ENCRYPTION_SECRET: z.string().default(""),
+  /** 反馈墙帖子同步 GitHub Issue：Token；为空则整体关闭该能力 */
+  GITHUB_TOKEN: z.string().default(""),
+  /** 反馈墙帖子同步 GitHub Issue：目标仓库，格式 owner/repo */
+  GITHUB_REPO: z.string().default(""),
+  /** 反馈墙 Issue 附带 label；留空则只建不打标 */
+  GITHUB_ISSUE_LABEL: z.string().default("feedback"),
+  /** 单次调用 GitHub Issues API 的超时（毫秒） */
+  GITHUB_ISSUE_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
 });
 
 export type Env = z.infer<typeof envSchema>;
