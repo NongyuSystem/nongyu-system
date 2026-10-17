@@ -35,6 +35,7 @@ import {
   ReplyNotFoundError,
 } from "./postReplies.repo.js";
 import { withTransaction } from "../../lib/db.js";
+import { isFeedbackIssueSyncEnabled, syncFeedbackIssueAsync } from "./feedbackIssue.js";
 
 export const appPostsRouter = Router();
 export const adminPostsRouter = Router();
@@ -230,6 +231,15 @@ appPostsRouter.post(
       content: body.content,
       authorUserId: req.appAuth!.uid,
     });
+    // 反馈墙帖子落库后异步同步一条 GitHub Issue；失败只记日志，不影响发帖响应
+    if (body.postType === "feedback" && isFeedbackIssueSyncEnabled()) {
+      syncFeedbackIssueAsync({
+        postId: Number(id),
+        subtype: body.subtype,
+        title: body.title,
+        content: body.content,
+      });
+    }
     ok(res, { id });
   }),
 );
