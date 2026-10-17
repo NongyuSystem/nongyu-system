@@ -82,3 +82,17 @@ Agent产生的任何结构和样式类的代码都必须严格遵循以下设计
 ### 代码检索（CodeGraph + Cursor 内置）
 
 参考/.agents/rules/代码检索策略.md（结构/调用链优先 CodeGraph；精确字符串用 Grep；禁止无目标广撒读文件）
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for this repo (`NongyuSystem/nongyu-system`), driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix` (plus `wayfinder:*` labels for `/wayfinder`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+single-context（仓库共用一份根目录词条文件 + `docs/adr/`）。See `docs/agents/domain.md`.

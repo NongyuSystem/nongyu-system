@@ -1,14 +1,14 @@
 # Go 埋点后端迁移至 Node 技术方案
 
-| 项        | 内容                                                                                                |
-| --------- | --------------------------------------------------------------------------------------------------- |
-| 状态      | **决策已锁定**；Spec/计划已确认；**实施中**                                                         |
-| 关联计划  | `docs/nongyu-go-track-server/plans/埋点服务迁移至Node.md`                                           |
-| 需求类型  | **基建**                                                                                            |
-| 文档范围  | **用 Node 埋点服务替换** 现网 Go 埋点；仍部署在 **原 Track 独立机**                                 |
-| 关联 Spec | `docs/nongyu-go-track-server/specs/埋点服务迁移至Node.md`                                           |
-| 依据      | `接口文档.md`、`tech/埋点服务技术方案.md`、`技术选型.md`、`scripts/track-migration-bench/REPORT.md` |
-| 非目标    | 不把埋点原始事件并入业务 MySQL；**永不**与业务 `nongyu-node-server` 同机部署或同进程合并            |
+| 项        | 内容                                                                                                                                                       |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态      | **决策已锁定**；Spec/计划已确认；**实施中**                                                                                                                |
+| 关联计划  | `docs/nongyu-go-track-server/plans/埋点服务迁移至Node.md`                                                                                                  |
+| 需求类型  | **基建**                                                                                                                                                   |
+| 文档范围  | **用 Node 埋点服务替换** 现网 Go 埋点；仍部署在 **原 Track 独立机**                                                                                        |
+| 关联 Spec | `docs/nongyu-go-track-server/specs/埋点服务迁移至Node.md`                                                                                                  |
+| 依据      | `接口文档.md`、`tech/埋点服务技术方案.md`、`技术选型.md`、`tech/埋点迁移压测报告.md`（原 `scripts/track-migration-bench/REPORT.md`，脚本已随迁移完成清理） |
+| 非目标    | 不把埋点原始事件并入业务 MySQL；**永不**与业务 `nongyu-node-server` 同机部署或同进程合并                                                                   |
 
 ---
 
@@ -363,4 +363,4 @@ Monorepo：`pnpm` workspace 新增上述 package；CD 发布目标 **固定为 T
 - `.github/workflows/cd.yml`（`deploy-track` / path filter）
 - `scripts/cd/publish-track.sh`、`scripts/deploy-nongyu-track.ps1`
 - `apps/nongyu-rn-app/src/modules/telemetry/types.ts`
-- `scripts/track-migration-bench/REPORT.md`（2026-08-29 写入压测）
+- `docs/nongyu-go-track-server/tech/埋点迁移压测报告.md`（2026-08-29 写入压测；原 `scripts/track-migration-bench/REPORT.md`，脚本已清理）
