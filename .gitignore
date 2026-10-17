@@ -17,6 +17,23 @@ old-code/
 .env.development.local
 .env.test.local
 .env.production.local
+# 兜底：一切 .env.* 均不入库，仅放行 example 模板
+.env.*
+!.env.example
+!.env.test.example
+
+# 操作系统与编辑器产物
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+
+# 测试覆盖率产物
+coverage/
+.nyc_output/
+
+# pnpm pack 产物
+*.tgz
 
 # 日志文件
 logs
@@ -52,12 +69,9 @@ scripts/ops/
 apps/nongyu-go-track-server/data/
 apps/nongyu-go-track-server/dist/
 
-# 本机临时解包 / 压测产物
+# 本机临时解包产物
 .tmp-apk/
 .tmp-apk-check/
 .tmp-second-docs/
-scripts/track-migration-bench/out/
-scripts/track-migration-bench/out-full-node/
-scripts/track-migration-bench/nongyu-track-bench
 
 
