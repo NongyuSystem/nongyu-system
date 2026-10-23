@@ -30,9 +30,11 @@
   "dependencies": {
     "axios": "catalog:",
     "buffer": "catalog:",
+    "crypto-js": "catalog:",
     "iconv-lite": "catalog:"
   },
   "devDependencies": {
+    "@types/crypto-js": "catalog:",
     "tsup": "catalog:",
     "typescript": "catalog:"
   }

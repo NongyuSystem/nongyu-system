@@ -18,7 +18,7 @@ import { personalInfoToSessionProfile } from "@/modules/jiaowu/auth/personalInfo
 import { invalidateNongyuAgent } from "@/agent/agent";
 import { clearAgentChatSessions } from "@/agent/session";
 import {
-  bridgeJiaowuLogin,
+  bridgeJiaowuLoginByCas,
   bridgeSetLoginData,
   clearJiaowuToolSession,
   persistCurrentAspCookie,
@@ -29,6 +29,10 @@ import { refreshSecondAuthFlag } from "@/modules/second/hooks/useSecondAuth";
 export type PerformJiaowuLoginInput = {
   studentId: string;
   password: string;
+  /** 用户看图输入的图形验证码 */
+  captchaCode: string;
+  /** 与验证码配套的 uuid（取图时获得） */
+  captchaUuid: string;
   queryClient?: QueryClient;
 };
 
@@ -37,28 +41,43 @@ export type PerformJiaowuLoginResult = {
   message?: string;
   /** Node 登录是否成功（失败不影响本地教务会话） */
   nodeOk: boolean;
+  /** 是否需要立刻换一张验证码（验证码错误/过期时置位） */
+  needRefreshCaptcha?: boolean;
 };
 
 /**
- * 完整登录流程：教务校验 → 档案 →（best-effort）Node → 持久化
+ * 完整登录流程：统一身份认证校验 → 档案 →（best-effort）Node → 持久化
+ *
+ * 教务系统自 2026-10-23 起取消首页账号密码登录，只能走统一身份认证；
+ * 每次登录都必须带一次用户输入的图形验证码，因此本流程无法在后台静默完成。
  */
 export async function performJiaowuLogin(
   input: PerformJiaowuLoginInput,
 ): Promise<PerformJiaowuLoginResult> {
-  const { studentId, password, queryClient } = input;
+  const { studentId, password, captchaCode, captchaUuid, queryClient } = input;
   const trimmedId = studentId.trim();
   const trimmedPwd = password.trim();
+  const trimmedCode = captchaCode.trim();
 
   if (!trimmedId || !trimmedPwd) {
     return { ok: false, message: "请输入学号和密码", nodeOk: false };
   }
+  if (!trimmedCode) {
+    return { ok: false, message: "请输入图形验证码", nodeOk: false };
+  }
 
-  const loginResult = await bridgeJiaowuLogin(trimmedId, trimmedPwd);
+  const loginResult = await bridgeJiaowuLoginByCas({
+    studentId: trimmedId,
+    password: trimmedPwd,
+    captchaCode: trimmedCode,
+    captchaUuid,
+  });
   if (!loginResult.success) {
     return {
       ok: false,
       message: loginResult.message || "教务登录失败",
       nodeOk: false,
+      needRefreshCaptcha: loginResult.needRefreshCaptcha,
     };
   }
 

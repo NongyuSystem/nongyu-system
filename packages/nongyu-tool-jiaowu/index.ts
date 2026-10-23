@@ -12,8 +12,18 @@
 // 导出登录与账号配置模块
 export {
   setLoginData, // 开局调此函数,便于其他鉴权函数的自动重登录
-  jiaowuLogin, // 主要用于农屿登录时验证教务密码
+  jiaowuLogin, // 【已废弃】教务口令登录，2026-10-23 起教务已取消该入口
   clearLoginData, // 登出时清空 LOGIN_DATA 与 Cookie
+} from "./core/login";
+
+// 统一身份认证（CAS）登录：当前教务系统唯一可用的登录路径
+export {
+  getJiaowuCaptcha, // 取一张图形验证码交给界面显示
+  jiaowuLoginByCas, // 用户输入验证码后完成 CAS 登录
+  type JiaowuCaptcha,
+  type JiaowuCaptchaResult,
+  type JiaowuCasLoginInput,
+  type JiaowuCasLoginResult,
 } from "./core/login";
 
 // Cookie 桥接（冷启动恢复 / 持久化备份）
@@ -24,9 +34,11 @@ export { resolveJiaowuUserAgent, setJiaowuUserAgent } from "./core/utils";
 // 开发态 HTTP 日志挂载点（仅 RN __DEV__ 调用，包内不打印）
 export { attachJiaowuHttpLogger, type JiaowuHttpLogEvent } from "./core/utils";
 
-// 超时/内网提示
+// 超时/内网提示 + 会话过期（需用户重新输验证码登录）
 export {
   JIAOWU_CAMPUS_NETWORK_HINT,
+  JiaowuSessionExpiredError,
+  isJiaowuSessionExpiredError,
   isJiaowuTimeoutError,
   resolveJiaowuErrorMessage,
 } from "./core/utils";

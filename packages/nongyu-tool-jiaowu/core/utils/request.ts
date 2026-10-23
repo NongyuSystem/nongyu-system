@@ -1,6 +1,7 @@
 /**
  * 网络请求封装模块
- * 基于 axios 实现，包含请求拦截、响应拦截、自动重试和自动登录逻辑
+ * 基于 axios 实现，包含请求拦截、响应拦截、自动重试
+ * （统一身份认证改造后已移除「静默自动登录」，改用 JiaowuSessionExpiredError 交给界面）
  */
 
 import axios, {
@@ -11,7 +12,11 @@ import axios, {
 } from "axios";
 import { decodeGbk } from "./decode";
 import { getCookie, setCookie } from "./cookie";
-import { isJiaowuTimeoutError, resolveJiaowuErrorMessage } from "./errors";
+import {
+  JiaowuSessionExpiredError,
+  isJiaowuTimeoutError,
+  resolveJiaowuErrorMessage,
+} from "./errors";
 import { resolveJiaowuUserAgent } from "./userAgent";
 
 /**
@@ -71,7 +76,8 @@ service.interceptors.request.use(
  */
 export interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
   _retryCount?: number; // 当前重试次数
-  _reloginAttempted?: boolean; // 是否已尝试过自动登录
+  /** @deprecated 统一身份认证改造后不再自动重登，字段保留以兼容既有调用方 */
+  _reloginAttempted?: boolean;
   fullResponse?: boolean; // 是否返回完整的 AxiosResponse 对象
 }
 
@@ -186,34 +192,10 @@ service.interceptors.response.use(
 
     // 判断响应内容是否提示登录超时
     if (decodedHtml.includes("登录超时") || decodedHtml.includes("账号验证失败")) {
-      if (!config._reloginAttempted) {
-        config._reloginAttempted = true;
-        console.log("检测到登录超时，尝试重新登录...");
-
-        // 先清空现有 cookie，触发 jiaowuLogin 重新获取
-        setCookie("");
-
-        // 动态导入 jiaowuLogin 以解决循环依赖问题
-        const { jiaowuLogin } = await import("../login");
-        // 这里重新登录用的是全局变量里的学号密码，无需传参，所以jiaowuLogin成功后必须反填全局登录数据
-        const loginResult = await jiaowuLogin();
-
-        if (loginResult.success) {
-          console.log("重新登录成功，重新发起请求");
-          // 更新请求头中的 cookie
-          if (config.headers) {
-            config.headers["Cookie"] = getCookie();
-          }
-          // 重新发起刚刚失败的请求
-          return service(config);
-        } else {
-          console.error("重新登录失败");
-          return Promise.reject(new Error("登录超时且自动重新登录失败"));
-        }
-      } else {
-        // 已尝试过重新登录但依然超时，停止重试
-        return Promise.reject(new Error("登录超时且已尝试过重新登录"));
-      }
+      // 统一身份认证改造（2026-10-23）后，重新登录必须由用户看一次图形验证码，
+      // 已无法用本地密码静默重登：这里只清掉失效会话，把「需重新登录」抛给界面。
+      setCookie("");
+      return Promise.reject(new JiaowuSessionExpiredError());
     }
 
     return response;

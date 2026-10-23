@@ -867,3 +867,15 @@
 - **修复**：用户侧清除 `nongyu.site` / `101.43.34.229` 站点数据或禁用缓存后硬刷新。安全组放行 443 前不要再发 301；以后改跳转用 302。
 
 ---
+
+## 2026-10-24 · nongyu-tool-jiaowu / nongyu-rn-app · 教务取消密码登录，App 登录链路整体失效
+
+- **现象**：教务处于 2026-10-23 发布《关于调整教务管理系统登录方式的通知》，取消普通用户在教务系统首页直接输入账号、密码登录，改为「微信扫码登录」或「统一身份认证登录」。App 原有「学号 + 密码 → `check.asp`」登录必失败，所有需登录的教务页（成绩、考试、排名、培养方案、学业进度）随之不可用。
+- **根因**：教务系统登录入口换成统一身份认证（川农 e 认证，CAS 协议）。旧链路依赖 `index.asp` 隐藏域 `sign` / `hour_key` 后 POST `jiaoshi/bangong/check.asp`，该入口已被平台侧下线；同时平台登录必须通过**图形验证码**，无法在后台静默完成，原「会话超时 → 用本地密码自动重登」的兜底也随之失效。
+- **修复**：
+  1. `packages/nongyu-tool-jiaowu/core/login/cas.ts` 新增统一身份认证登录模块：`getJiaowuCaptcha()` 取图形验证码（响应体为 AES-128-CBC 加密，`key = MD5(requestId + ":sicau-cas")`，前 16 字节为 IV，尾部自定义 padding），`jiaowuLoginByCas()` 依次完成「建立 ASP 会话 → `POST /api/v1/cas/login` 换 ticket → 带 `ticket:userId` 回投 `jiaoshi/aspsso/caslogin.asp` 建教务会话」。
+  2. `core/utils/request.ts` 响应拦截器移除静默自动重登，命中「登录超时 / 账号验证失败」时清 Cookie 并抛 `JiaowuSessionExpiredError`，交由界面引导用户重新输验证码登录。
+  3. `apps/nongyu-rn-app` 的 `JiaowuLoginForm` 增加图形验证码输入与换图交互（全局登录页与教务页内登录共用同一组件，改一处覆盖两处）；`performJiaowuLogin` 入参增加 `captchaCode` / `captchaUuid`，登录失败后自动换图。
+  4. 旧 `jiaowuLogin`（口令路径）标记 `@deprecated` 保留，仅作回退对照，不再被主流程调用。
+- **影响面**：登录不再具备静默重登能力，教务会话过期时必须由用户重新读图输入验证码；`SecureStore` 中的密码仅用于预填与登出清理。
+- **验证**：`pnpm --filter nongyu-tool-jiaowu type-check` / `build` 通过；用构建产物实跑 `getJiaowuCaptcha()` 可正确解密出 `data:image/png;base64,...` 验证码图；`POST /api/v1/cas/login` 错误验证码返回 `{"code":500,"msg":"验证码错误"}` 与平台前端一致。

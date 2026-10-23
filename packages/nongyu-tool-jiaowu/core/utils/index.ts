@@ -23,6 +23,8 @@ export { resolveJiaowuUserAgent, setJiaowuUserAgent } from "./userAgent";
 // 错误与超时提示
 export {
   JIAOWU_CAMPUS_NETWORK_HINT,
+  JiaowuSessionExpiredError,
+  isJiaowuSessionExpiredError,
   isJiaowuTimeoutError,
   resolveJiaowuErrorMessage,
   jiaowuFailResult,
