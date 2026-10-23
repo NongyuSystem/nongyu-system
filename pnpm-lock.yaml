@@ -130,7 +130,7 @@ importers:
         version: 5.9.3
       vite:
         specifier: 'catalog:'
-        version: 8.0.16(@types/node@22.19.19)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+        version: 8.0.16(@types/node@22.19.19)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
   apps/nongyu-node-server:
     dependencies:
@@ -155,6 +155,9 @@ importers:
       mysql2:
         specifier: ^3.12.0
         version: 3.22.4(@types/node@22.19.19)
+      nongyu-tool-jiaowu:
+        specifier: workspace:*
+        version: link:../../packages/nongyu-tool-jiaowu
       pino:
         specifier: ^9.6.0
         version: 9.14.0
@@ -15839,6 +15842,22 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.6.1
       lightningcss: 1.32.0
+      terser: 5.48.0
+      tsx: 4.22.4
+      yaml: 2.9.0
+
+  vite@8.0.16(@types/node@22.19.19)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0):
+    dependencies:
+      lightningcss: 1.32.0
+      picomatch: 4.0.5
+      postcss: 8.5.15
+      rolldown: 1.0.3
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 22.19.19
+      esbuild: 0.27.7
+      fsevents: 2.3.3
+      jiti: 2.6.1
       terser: 5.48.0
       tsx: 4.22.4
       yaml: 2.9.0
