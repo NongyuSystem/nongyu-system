@@ -47,6 +47,9 @@ const RESPONSE_SALT = ":sicau-cas";
 /** 教务 ASP 会话 Cookie 前缀（会话只认这一族） */
 const ASP_COOKIE_PREFIX = "ASPSESSIONID";
 
+/** 教务回调允许跟随的最大跳数（实测 2 跳，留余量） */
+const CAS_MAX_REDIRECTS = 5;
+
 /** 统一身份认证接口超时（毫秒） */
 const CAS_TIMEOUT = 15000;
 
@@ -245,6 +248,67 @@ export async function getJiaowuCaptcha(): Promise<JiaowuCaptchaResult> {
 }
 
 /**
+ * 把 ticket 写进教务回调地址（set 语义，替换同名参数）。
+ *
+ * 平台返回的 `callbackUrl` **自带 `?ticket=ST:xxx`**（只有 service ticket，没有 userId 后缀）。
+ * 平台前端用 `searchParams.set("ticket", st + ":" + userId)` 覆盖它；
+ * 若这里改成字符串追加，URL 会同时出现两个 `ticket`，教务取第一个（缺 `:userId`）→
+ * 回调虽然 200，但会话不成立，业务页仍 302 回登录页。
+ *
+ * RN 的 URL polyfill 不保证支持 `searchParams`，故手工实现。
+ */
+function buildCallbackUrl(callbackBase: string, ticket: string, userId: string): string {
+  const queryIndex = callbackBase.indexOf("?");
+  const path = queryIndex === -1 ? callbackBase : callbackBase.slice(0, queryIndex);
+  const query = queryIndex === -1 ? "" : callbackBase.slice(queryIndex + 1);
+
+  const kept = query
+    .split("&")
+    .filter(Boolean)
+    .filter((pair) => {
+      const key = pair.split("=")[0];
+      return key !== "ticket" && key !== "userId";
+    });
+
+  kept.push(`ticket=${encodeURIComponent(`${ticket}:${userId}`)}`);
+  kept.push(`userId=${encodeURIComponent(userId)}`);
+
+  return `${path}?${kept.join("&")}`;
+}
+
+/**
+ * 解析 302 的 `Location`（可能是相对路径，如 `../bangong/check_cas.asp?sign=…`）。
+ *
+ * RN 的 URL polyfill 不可靠，这里按 RFC 3986 的相对引用规则手工拼接：
+ * 以当前 URL 的目录为基准，处理 `../` 与 `./`，保留 query。
+ */
+function resolveRedirect(base: string, location: string): string {
+  if (/^https?:\/\//i.test(location)) return location;
+
+  const originMatch = base.match(/^([a-z]+:\/\/[^/]+)/i);
+  const origin = originMatch ? originMatch[1] : "";
+
+  let target = location;
+  if (!target.startsWith("/")) {
+    const basePath = base.slice(origin.length).split("?")[0];
+    const dir = basePath.slice(0, basePath.lastIndexOf("/") + 1);
+    target = `${dir}${target}`;
+  }
+
+  const [pathPart, ...queryParts] = target.split("?");
+  const query = queryParts.length > 0 ? `?${queryParts.join("?")}` : "";
+
+  const stack: string[] = [];
+  for (const segment of pathPart.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") stack.pop();
+    else stack.push(segment);
+  }
+
+  return `${origin}/${stack.join("/")}${query}`;
+}
+
+/**
  * 通过统一身份认证登录教务系统。
  *
  * 流程（与浏览器一致，缺一不可）：
@@ -345,25 +409,47 @@ export async function jiaowuLoginByCas(input: JiaowuCasLoginInput): Promise<Jiao
       };
     }
 
-    // 3) 带 ticket 回投教务，建立教务自己的会话
-    const callbackBase = payload?.callbackUrl || CAS_SERVICE_URL;
-    const separator = callbackBase.includes("?") ? "&" : "?";
-    const callbackUrl =
-      `${callbackBase}${separator}` +
-      `ticket=${encodeURIComponent(`${ticket}:${userId}`)}` +
-      `&userId=${encodeURIComponent(userId)}`;
+    // 3) 带 ticket 回投教务，**沿重定向链走完**，教务会话在第二跳才建立。
+    //    实测链路：
+    //      caslogin.asp?ticket=ST:xxx:userId&userId=…  → 302 ../bangong/check_cas.asp?sign=…
+    //      check_cas.asp?sign=…                        → 302 首页 + Set-Cookie（新 ASPSESSIONID）
+    //    只停在第一跳（maxRedirects: 0 且不跟）会拿到 302 却没有任何新 Cookie，
+    //    症状就是「登录接口成功、业务页仍 302 回登录页」。
+    //    注意 callbackUrl 自带 `?ticket=ST:xxx`（无 userId 后缀），必须按 set 语义覆盖，
+    //    否则 URL 里出现两个 ticket，教务取第一个（缺 `:userId`）→ 校验失败。
+    let cookiePairs = cookieFromEntry.slice();
+    let currentUrl = buildCallbackUrl(payload?.callbackUrl || CAS_SERVICE_URL, ticket, userId);
+    let settled = false;
 
-    const mergedBefore = mergeCookiePairs(cookieFromEntry);
+    for (let hop = 0; hop < CAS_MAX_REDIRECTS; hop += 1) {
+      const step = await axios.get(currentUrl, {
+        maxRedirects: 0,
+        timeout: CALLBACK_TIMEOUT,
+        validateStatus: (status) => status >= 200 && status < 400,
+        headers: buildCallbackHeaders(mergeCookiePairs(cookiePairs) || getCookie()),
+        responseType: "text",
+        transformResponse: [(data) => data],
+      });
 
-    const callback = await axios.get(callbackUrl, {
-      maxRedirects: 0,
-      timeout: CALLBACK_TIMEOUT,
-      validateStatus: (status) => status >= 200 && status < 400,
-      headers: buildCallbackHeaders(mergedBefore || getCookie()),
-    });
+      cookiePairs = cookiePairs.concat(extractAspCookies(step.headers));
 
-    const cookieFromCallback = extractAspCookies(callback.headers);
-    const finalCookie = mergeCookiePairs(cookieFromEntry, cookieFromCallback);
+      const location = (step.headers as Record<string, unknown>)?.location;
+      if (!location) {
+        settled = true;
+        break;
+      }
+      currentUrl = resolveRedirect(currentUrl, String(location));
+    }
+
+    const finalCookie = mergeCookiePairs(cookiePairs);
+
+    if (!settled) {
+      return {
+        success: false,
+        message: "教务系统回调跳转异常，请稍后重试",
+        needRefreshCaptcha: true,
+      };
+    }
 
     if (!finalCookie) {
       return {

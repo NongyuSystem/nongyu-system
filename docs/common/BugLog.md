@@ -879,3 +879,14 @@
   4. 旧 `jiaowuLogin`（口令路径）标记 `@deprecated` 保留，仅作回退对照，不再被主流程调用。
 - **影响面**：登录不再具备静默重登能力，教务会话过期时必须由用户重新读图输入验证码；`SecureStore` 中的密码仅用于预填与登出清理。
 - **验证**：`pnpm --filter nongyu-tool-jiaowu type-check` / `build` 通过；用构建产物实跑 `getJiaowuCaptcha()` 可正确解密出 `data:image/png;base64,...` 验证码图；`POST /api/v1/cas/login` 错误验证码返回 `{"code":500,"msg":"验证码错误"}` 与平台前端一致。
+
+## 2026-10-24 · nongyu-tool-jiaowu · CAS 登录「成功」但业务页仍需登录（两个隐藏缺陷）
+
+- **现象**：`POST /api/v1/cas/login` 返回 200，`jiaowuLoginByCas` 也拿到 `ASPSESSIONIDSUCTQRAT`，但随后 `getPersonalInfo` / `getScoreInfo` 一律返回「教务会话已过期」；直接 curl 业务页 `bjiben.asp` 得 302 → `jiaoshi/bangong/index.asp`。
+- **根因（两处叠加）**：
+  1. **ticket 参数重复**：平台返回的 `callbackUrl` 自带 `?ticket=ST:xxx`（只有 service ticket，无 `:userId` 后缀）。平台前端用 `URLSearchParams.set` 覆盖它；客户端若按字符串追加 `&ticket=…&userId=…`，URL 中会出现两个 `ticket`，教务取第一个（缺后缀）→ 校验失败。
+  2. **回调只走了一跳**：教务回调是两步 —— `caslogin.asp?ticket=…` → 302 `../bangong/check_cas.asp?sign=…` → 302 首页并 **Set-Cookie**。客户端 `maxRedirects: 0` 且不手动跟随，停在第 1 跳时一个新 Cookie 都拿不到。
+- **修复**：
+  1. `core/login/cas.ts` 新增 `buildCallbackUrl()`：先剔除同名 `ticket` / `userId` 再按 set 语义写回。
+  2. 新增 `resolveRedirect()`（RFC 3986 相对引用手工解析，RN 的 URL polyfill 不可靠）+ 循环跟随重定向链（`CAS_MAX_REDIRECTS = 5`），每一跳收集 `ASPSESSIONID*`。
+- **验证**：真机（公网）跑通 —— 登录成功 → `getPersonalInfo` 返回真实档案（姓名/学院/专业/班级/年级）→ `getScoreInfo` 返回真实成绩列表（含学分、绩点、课程性质）。最终有效会话为 `check_cas.asp` 这一跳下发。
