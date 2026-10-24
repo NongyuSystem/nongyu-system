@@ -87,3 +87,7 @@ _artifacts/
 .dsh-*.py
 .dsh-*.mjs
 .dsh-*.wav
+
+# Expo prebuild 生成的原生工程（CI / 本地打包产物，不入库）
+apps/nongyu-rn-app/android/
+apps/nongyu-rn-app/ios/
