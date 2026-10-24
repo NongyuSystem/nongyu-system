@@ -75,3 +75,15 @@ apps/nongyu-go-track-server/dist/
 .tmp-second-docs/
 
 
+
+# ============================================================
+# 本次会话产出的媒体素材与 HyperFrames 视频工程（不入库）
+# 含大体积素材（~700MB）、HyperFrames 工程、临时工作目录
+# ============================================================
+_artifacts/
+.dsh-vid/
+.dsh-nongyu-char*.png
+.dsh-*.ps1
+.dsh-*.py
+.dsh-*.mjs
+.dsh-*.wav

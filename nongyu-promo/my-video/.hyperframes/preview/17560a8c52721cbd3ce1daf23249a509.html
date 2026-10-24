@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+  <head>
+    <script data-hf-gsap-fallback>
+      (function () {
+        var cdnBase = "https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/";
+        var loaded = {};
+        function loadFallback(file) {
+          if (loaded[file]) return loaded[file];
+          return (loaded[file] = new Promise(function (ok, fail) {
+            var s = document.createElement("script");
+            s.src = cdnBase + file;
+            s.hfGsapFallback = true;
+            s.onload = ok;
+            s.onerror = fail;
+            document.head.appendChild(s);
+          }));
+        }
+        document.addEventListener(
+          "error",
+          function (e) {
+            var t = e.target;
+            if (!t || t.tagName !== "SCRIPT" || !t.src || t.hfGsapFallback) return;
+            var m = t.src.match(/gsap[^/]*\/dist\/(.+\.js)/);
+            if (m)
+              loadFallback(m[1]).catch(function () {
+                reportError(
+                  new Error(
+                    "GSAP could not load from " +
+                      t.src +
+                      " or " +
+                      cdnBase +
+                      m[1] +
+                      ", so this preview's animations will not play.",
+                  ),
+                );
+              });
+          },
+          true,
+        );
+      })();
+    </script>
+    <meta name="hyperframes-studio-preview" />
+    <script>
+      (function () {
+        var seen = (window.__hfPreviewErrors = []);
+        addEventListener("error", function (e) {
+          seen.push(e.message || String(e));
+        });
+      })();
+    </script>
+    <base href="/api/projects/my-video/preview/" />
+    <style data-hyperframes-text-rendering="true">
+      html,
+      body,
+      * {
+        text-rendering: geometricPrecision;
+      }
+    </style>
+    <script data-hyperframes-preview-runtime="1" src="/api/runtime.js"></script>
+    <meta name="hyperframes-project-signature" content="242d50fc604c6abfd599884f" />
+  </head>
+  <body></body>
+</html>
