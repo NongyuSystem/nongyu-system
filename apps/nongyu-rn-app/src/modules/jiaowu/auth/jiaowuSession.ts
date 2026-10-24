@@ -4,8 +4,12 @@ import {
   getJiaowuCaptcha,
   jiaowuLogin,
   jiaowuLoginByCas,
+  jiaowuLoginByPhone,
+  sendJiaowuSmsCode,
   setCookie,
   setLoginData,
+  type JiaowuPhoneLoginInput,
+  type JiaowuSendSmsInput,
   type JiaowuCasLoginInput,
   type JiaowuCaptchaResult,
   type JiaowuCasLoginResult,
@@ -39,6 +43,26 @@ export async function bridgeJiaowuLoginByCas(
   input: JiaowuCasLoginInput,
 ): Promise<JiaowuCasLoginResult> {
   const result = await jiaowuLoginByCas(input);
+  if (result.success && result.cookie) {
+    setJiaowuAspCookie(result.cookie);
+  }
+  return result;
+}
+
+/**
+ * 发送登录短信验证码（发短信前仍需图形验证码）。
+ */
+export function bridgeSendJiaowuSmsCode(input: JiaowuSendSmsInput) {
+  return sendJiaowuSmsCode(input);
+}
+
+/**
+ * 用短信验证码完成教务登录；成功时备份 ASP Cookie。
+ */
+export async function bridgeJiaowuLoginByPhone(
+  input: JiaowuPhoneLoginInput,
+): Promise<JiaowuCasLoginResult> {
+  const result = await jiaowuLoginByPhone(input);
   if (result.success && result.cookie) {
     setJiaowuAspCookie(result.cookie);
   }

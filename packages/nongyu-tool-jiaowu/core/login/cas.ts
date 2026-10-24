@@ -335,6 +335,83 @@ function resolveRedirect(base: string, location: string): string {
  * }
  * ```
  */
+/** 统一身份认证成功后的 payload 形状（密码登录与短信登录共用） */
+type CasLoginPayload = {
+  callbackUrl?: string;
+  st?: string;
+  users?: Array<{ id?: string | number }>;
+};
+
+/**
+ * 公共收尾：拿 service ticket 回投教务，沿重定向链建立 ASP 会话。
+ *
+ * 实测链路（缺一不可）：
+ *   caslogin.asp?ticket=ST:xxx:userId&userId=…  → 302 ../bangong/check_cas.asp?sign=…
+ *   check_cas.asp?sign=…                        → 302 首页 + Set-Cookie（新 ASPSESSIONID）
+ *
+ * 两个必须记住的点：
+ * 1. 只停在第一跳（`maxRedirects: 0` 且不手动跟随）会拿到 302 却没有任何新 Cookie；
+ * 2. `callbackUrl` 自带 `?ticket=ST:xxx`（无 userId 后缀），必须按 set 语义覆盖，
+ *    否则 URL 里出现两个 ticket，教务取第一个（缺 `:userId`）→ 校验失败。
+ */
+async function completeServiceLogin(
+  payload: CasLoginPayload | null,
+  cookieFromEntry: string[],
+): Promise<JiaowuCasLoginResult> {
+  const ticket = payload?.st;
+  const userId = payload?.users?.[0]?.id == null ? "" : String(payload.users[0].id);
+
+  if (!ticket || !userId) {
+    return { success: false, message: "统一身份认证未返回有效票据", needRefreshCaptcha: true };
+  }
+
+  let cookiePairs = cookieFromEntry.slice();
+  let currentUrl = buildCallbackUrl(payload?.callbackUrl || CAS_SERVICE_URL, ticket, userId);
+  let settled = false;
+
+  for (let hop = 0; hop < CAS_MAX_REDIRECTS; hop += 1) {
+    const step = await axios.get(currentUrl, {
+      maxRedirects: 0,
+      timeout: CALLBACK_TIMEOUT,
+      validateStatus: (status) => status >= 200 && status < 400,
+      headers: buildCallbackHeaders(mergeCookiePairs(cookiePairs) || getCookie()),
+      responseType: "text",
+      transformResponse: [(data) => data],
+    });
+
+    cookiePairs = cookiePairs.concat(extractAspCookies(step.headers));
+
+    const location = (step.headers as Record<string, unknown>)?.location;
+    if (!location) {
+      settled = true;
+      break;
+    }
+    currentUrl = resolveRedirect(currentUrl, String(location));
+  }
+
+  const finalCookie = mergeCookiePairs(cookiePairs);
+
+  if (!settled) {
+    return {
+      success: false,
+      message: "教务系统回调跳转异常，请稍后重试",
+      needRefreshCaptcha: true,
+    };
+  }
+
+  if (!finalCookie) {
+    return {
+      success: false,
+      message: "教务系统未返回会话 Cookie，请改用校园网重试",
+      needRefreshCaptcha: true,
+    };
+  }
+
+  // 落会话：业务页请求靠这串 Cookie
+  setCookie(finalCookie);
+  return { success: true, cookie: finalCookie };
+}
+
 export async function jiaowuLoginByCas(input: JiaowuCasLoginInput): Promise<JiaowuCasLoginResult> {
   const studentId = input.studentId?.trim();
   const password = input.password ?? "";
@@ -409,61 +486,107 @@ export async function jiaowuLoginByCas(input: JiaowuCasLoginInput): Promise<Jiao
       };
     }
 
-    // 3) 带 ticket 回投教务，**沿重定向链走完**，教务会话在第二跳才建立。
-    //    实测链路：
-    //      caslogin.asp?ticket=ST:xxx:userId&userId=…  → 302 ../bangong/check_cas.asp?sign=…
-    //      check_cas.asp?sign=…                        → 302 首页 + Set-Cookie（新 ASPSESSIONID）
-    //    只停在第一跳（maxRedirects: 0 且不跟）会拿到 302 却没有任何新 Cookie，
-    //    症状就是「登录接口成功、业务页仍 302 回登录页」。
-    //    注意 callbackUrl 自带 `?ticket=ST:xxx`（无 userId 后缀），必须按 set 语义覆盖，
-    //    否则 URL 里出现两个 ticket，教务取第一个（缺 `:userId`）→ 校验失败。
-    let cookiePairs = cookieFromEntry.slice();
-    let currentUrl = buildCallbackUrl(payload?.callbackUrl || CAS_SERVICE_URL, ticket, userId);
-    let settled = false;
+    return completeServiceLogin(payload, cookieFromEntry);
+  } catch (error) {
+    return { success: false, message: resolveJiaowuErrorMessage(error, "登录异常") };
+  }
+}
 
-    for (let hop = 0; hop < CAS_MAX_REDIRECTS; hop += 1) {
-      const step = await axios.get(currentUrl, {
+/** 短信登录入参 */
+export type JiaowuPhoneLoginInput = {
+  /** 手机号（与统一身份认证绑定的一致） */
+  phone: string;
+  /** 收到的短信验证码 */
+  smsCode: string;
+};
+
+/** 发送短信验证码入参 */
+export type JiaowuSendSmsInput = {
+  phone: string;
+  /** 图形验证码（发短信前仍需过一道图形码） */
+  captchaCode: string;
+  captchaUuid: string;
+};
+
+/**
+ * 发送登录短信验证码。
+ *
+ * 平台发短信前同样要过图形验证码 —— 这条路径无法完全免验证码，
+ * 适合不想让服务端保存密码、又愿意每次收短信的用户。
+ */
+export async function sendJiaowuSmsCode(
+  input: JiaowuSendSmsInput,
+): Promise<{ success: true } | { success: false; message: string; needRefreshCaptcha?: boolean }> {
+  const phone = input.phone?.trim();
+  const captchaCode = input.captchaCode?.trim();
+  if (!phone) return { success: false, message: "请输入手机号" };
+  if (!captchaCode) return { success: false, message: "请输入图形验证码" };
+  if (!input.captchaUuid) {
+    return { success: false, message: "验证码已失效，请刷新后重试", needRefreshCaptcha: true };
+  }
+
+  try {
+    const response = await axios.post(
+      `${CAS_BASE_URL}/api/v1/sms/send`,
+      { uuid: input.captchaUuid, code: captchaCode, type: "login", phone },
+      { timeout: CAS_TIMEOUT, headers: { "Content-Type": "application/json" } },
+    );
+    const body = response.data as CasEnvelope<unknown>;
+    if (body?.code === 200) return { success: true };
+    const message = body?.msg || "短信发送失败";
+    return { success: false, message, needRefreshCaptcha: /验证码|图形/i.test(message) };
+  } catch (error) {
+    return { success: false, message: resolveJiaowuErrorMessage(error, "短信发送失败") };
+  }
+}
+
+/**
+ * 用手机短信验证码登录教务系统。
+ *
+ * 走平台的 `loginByPhone`，返回的 payload 与密码登录同构，
+ * 因此收尾（换 ticket → 回投教务 → 建 ASP 会话）复用 {@link completeServiceLogin}。
+ */
+export async function jiaowuLoginByPhone(
+  input: JiaowuPhoneLoginInput,
+): Promise<JiaowuCasLoginResult> {
+  const phone = input.phone?.trim();
+  const smsCode = input.smsCode?.trim();
+  if (!phone || !smsCode) {
+    return { success: false, message: "请输入手机号和短信验证码" };
+  }
+
+  let cookieFromEntry: string[] = [];
+  try {
+    try {
+      const entry = await axios.get(CAS_SERVICE_URL, {
         maxRedirects: 0,
         timeout: CALLBACK_TIMEOUT,
         validateStatus: (status) => status >= 200 && status < 400,
-        headers: buildCallbackHeaders(mergeCookiePairs(cookiePairs) || getCookie()),
-        responseType: "text",
-        transformResponse: [(data) => data],
+        headers: buildCallbackHeaders(getCookie()),
       });
-
-      cookiePairs = cookiePairs.concat(extractAspCookies(step.headers));
-
-      const location = (step.headers as Record<string, unknown>)?.location;
-      if (!location) {
-        settled = true;
-        break;
-      }
-      currentUrl = resolveRedirect(currentUrl, String(location));
+      cookieFromEntry = extractAspCookies(entry.headers);
+    } catch {
+      cookieFromEntry = [];
     }
 
-    const finalCookie = mergeCookiePairs(cookiePairs);
+    const response = await axios.post(
+      `${CAS_BASE_URL}/api/v1/cas/loginByPhone`,
+      { code: smsCode, phone, appid: CAS_APPID },
+      {
+        timeout: CAS_TIMEOUT,
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+      },
+    );
 
-    if (!settled) {
-      return {
-        success: false,
-        message: "教务系统回调跳转异常，请稍后重试",
-        needRefreshCaptcha: true,
-      };
+    const body = response.data as CasEnvelope<CasLoginPayload>;
+    if (body?.code !== 200) {
+      const message = body?.msg || "短信登录失败";
+      return { success: false, message, needRefreshCaptcha: /验证码|过期/i.test(message) };
     }
 
-    if (!finalCookie) {
-      return {
-        success: false,
-        message: "教务系统未返回会话 Cookie，请改用校园网重试",
-        needRefreshCaptcha: true,
-      };
-    }
-
-    // 4) 落会话：业务页请求靠这串 Cookie
-    setCookie(finalCookie);
-
-    return { success: true, cookie: finalCookie };
+    const payload = unwrapEnvelope<CasLoginPayload>(body);
+    return completeServiceLogin(payload, cookieFromEntry);
   } catch (error) {
-    return { success: false, message: resolveJiaowuErrorMessage(error, "登录异常") };
+    return { success: false, message: resolveJiaowuErrorMessage(error, "短信登录异常") };
   }
 }

@@ -19,11 +19,15 @@ export {
 // 统一身份认证（CAS）登录：当前教务系统唯一可用的登录路径
 export {
   getJiaowuCaptcha, // 取一张图形验证码交给界面显示
-  jiaowuLoginByCas, // 用户输入验证码后完成 CAS 登录
+  jiaowuLoginByCas, // 账密 + 图形验证码登录
+  jiaowuLoginByPhone, // 手机短信验证码登录
+  sendJiaowuSmsCode, // 发送登录短信验证码
   type JiaowuCaptcha,
   type JiaowuCaptchaResult,
   type JiaowuCasLoginInput,
   type JiaowuCasLoginResult,
+  type JiaowuPhoneLoginInput,
+  type JiaowuSendSmsInput,
 } from "./core/login";
 
 // Cookie 桥接（冷启动恢复 / 持久化备份）

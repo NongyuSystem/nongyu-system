@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { AppLinearGradient } from "@/components/ui/AppLinearGradient";
-import { JiaowuLoginForm } from "@/modules/jiaowu/components/JiaowuLoginForm";
+import { JiaowuLoginPanel } from "@/modules/jiaowu/components/JiaowuLoginPanel";
 import { guestGreeting } from "@/modules/mine/constants/avatar";
 import { resolveLaunchHref } from "@/modules/settings/utils/resolveLaunchHref";
 import { createThemedStyles } from "@/theme/createThemedStyles";
@@ -51,7 +51,7 @@ export function LoginScreen() {
             <Text style={styles.welcomeText}>{welcome}</Text>
           </View>
 
-          <JiaowuLoginForm
+          <JiaowuLoginPanel
             onSuccess={() => {
               router.replace(resolveLaunchHref());
             }}

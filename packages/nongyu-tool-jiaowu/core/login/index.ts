@@ -362,8 +362,12 @@ export async function jiaowuLogin(user?: string, pwd?: string) {
 export {
   getJiaowuCaptcha,
   jiaowuLoginByCas,
+  jiaowuLoginByPhone,
+  sendJiaowuSmsCode,
   type JiaowuCaptcha,
   type JiaowuCaptchaResult,
   type JiaowuCasLoginInput,
   type JiaowuCasLoginResult,
+  type JiaowuPhoneLoginInput,
+  type JiaowuSendSmsInput,
 } from "./cas";

@@ -1,7 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
-import { getPersonalInfo } from "nongyu-tool-jiaowu";
+import { getPersonalInfo, setCookie } from "nongyu-tool-jiaowu";
 import { toast } from "@/components/ui/toast";
 import { appAuthLogin, appAuthLogout } from "@/api/appAuth";
+import { enableJiaowuHosted, loginWithJiaowuHosted } from "@/api/jiaowuHosted";
 import { parseAppUserRole } from "@/api/parseAppUserRole";
 import { clearAgentConfig } from "@/storage/agentConfig";
 import { clearCredentials, saveCredentials } from "@/storage/secureCredentials";
@@ -19,6 +20,7 @@ import { invalidateNongyuAgent } from "@/agent/agent";
 import { clearAgentChatSessions } from "@/agent/session";
 import {
   bridgeJiaowuLoginByCas,
+  bridgeJiaowuLoginByPhone,
   bridgeSetLoginData,
   clearJiaowuToolSession,
   persistCurrentAspCookie,
@@ -43,6 +45,8 @@ export type PerformJiaowuLoginResult = {
   nodeOk: boolean;
   /** 是否需要立刻换一张验证码（验证码错误/过期时置位） */
   needRefreshCaptcha?: boolean;
+  /** 托管凭据失效，需要用户重新开启或改用手动方式 */
+  needsReauth?: boolean;
 };
 
 /**
@@ -80,6 +84,23 @@ export async function performJiaowuLogin(
       needRefreshCaptcha: loginResult.needRefreshCaptcha,
     };
   }
+
+  return finalizeJiaowuLogin({ studentId: trimmedId, password: trimmedPwd, queryClient });
+}
+
+/**
+ * 登录收尾：拿档案 → 农场屿 Token → 持久化 → 预热课表。
+ *
+ * 密码 / 验证码 / 短信 / 托管四条路径最终都汇到这里，避免行为分叉。
+ */
+async function finalizeJiaowuLogin(input: {
+  studentId: string;
+  password: string;
+  queryClient?: QueryClient;
+}): Promise<PerformJiaowuLoginResult> {
+  const { studentId, password, queryClient } = input;
+  const trimmedId = studentId;
+  const trimmedPwd = password;
 
   const personal = await getPersonalInfo();
   if (!personal.success || !personal.result) {
@@ -153,6 +174,100 @@ export async function performJiaowuLogin(
   }
 
   return { ok: true, nodeOk };
+}
+
+export type PerformPhoneLoginInput = {
+  phone: string;
+  smsCode: string;
+  /** 学号仅用于档案展示与本地持久化；短信登录本身只认手机号 */
+  studentId: string;
+  queryClient?: QueryClient;
+};
+
+/**
+ * 短信验证码登录：手机号 + 短信码换教务会话，再用档案补学号。
+ *
+ * 这条路径不经过服务端保存密码，适合不愿开托管、也不想每次看图形码的用户。
+ */
+export async function performPhoneJiaowuLogin(
+  input: PerformPhoneLoginInput,
+): Promise<PerformJiaowuLoginResult> {
+  const { phone, smsCode, studentId, queryClient } = input;
+  if (!phone.trim() || !smsCode.trim()) {
+    return { ok: false, message: "请输入手机号和短信验证码", nodeOk: false };
+  }
+
+  const loginResult = await bridgeJiaowuLoginByPhone({ phone, smsCode });
+  if (!loginResult.success) {
+    return {
+      ok: false,
+      message: loginResult.message || "短信登录失败",
+      nodeOk: false,
+      needRefreshCaptcha: loginResult.needRefreshCaptcha,
+    };
+  }
+
+  return finalizeJiaowuLogin({
+    studentId: studentId.trim(),
+    // 短信登录拿不到密码，本地不保存密码即可（saveCredentials 只存学号+密码，这里传空）
+    password: "",
+    queryClient,
+  });
+}
+
+export type PerformHostedLoginInput = {
+  studentNo: string;
+  password: string;
+  /** true = 首次开启托管（服务端校验密码后加密保存）；false = 已开启，直接换会话 */
+  enableHosted: boolean;
+  queryClient?: QueryClient;
+};
+
+/**
+ * 托管登录：由服务端用加密保存的密码 + OCR 过验证码，换回教务会话。
+ *
+ * 用户侧不需要看验证码；失败时按 `ocrUnavailable` / `needsReauth`
+ * 分别回落「手输验证码」或「重新开启托管」。
+ */
+export async function performHostedJiaowuLogin(
+  input: PerformHostedLoginInput,
+): Promise<PerformJiaowuLoginResult> {
+  const { studentNo, password, enableHosted, queryClient } = input;
+  const trimmedId = studentNo.trim();
+  const trimmedPwd = password.trim();
+
+  if (!trimmedId || !trimmedPwd) {
+    return { ok: false, message: "请输入学号和密码", nodeOk: false };
+  }
+
+  try {
+    let cookie: string;
+    if (enableHosted) {
+      const res = await enableJiaowuHosted(trimmedId, trimmedPwd);
+      cookie = res.cookie;
+    } else {
+      const res = await loginWithJiaowuHosted();
+      if (!res.success || !res.cookie) {
+        return {
+          ok: false,
+          message: res.message || "自动登录失败",
+          nodeOk: false,
+          needRefreshCaptcha: res.ocrUnavailable === true,
+          needsReauth: res.needsReauth === true,
+        };
+      }
+      cookie = res.cookie;
+    }
+    if (!cookie) {
+      return { ok: false, message: "服务端未返回教务会话", nodeOk: false };
+    }
+    setCookie(cookie);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "自动登录失败";
+    return { ok: false, message, nodeOk: false };
+  }
+
+  return finalizeJiaowuLogin({ studentId: trimmedId, password: trimmedPwd, queryClient });
 }
 
 /**

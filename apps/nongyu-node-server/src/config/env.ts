@@ -43,6 +43,14 @@ const envSchema = z.object({
    */
   CORS_ORIGIN: z.string().default(""),
   INTERNAL_TOKEN: z.string().min(16),
+  /**
+   * 教务凭据托管密钥（32 字节：64 位 hex 或 base64）。
+   * 留空 = 关闭「免验证码自动登录」能力，客户端会隐藏该入口；
+   * 轮换密钥会使已托管的凭据全部失效（用户需重新开启）。
+   */
+  JIAOWU_CREDENTIAL_KEY: z.string().default(""),
+  /** 验证码识别用的 Python 解释器；不配则默认 python3 */
+  JIAOWU_OCR_PYTHON: z.string().default("python3"),
   /** Track 根地址，无尾斜杠；Node 代理 Admin 指标时使用 */
   TRACK_BASE_URL: z
     .string()
