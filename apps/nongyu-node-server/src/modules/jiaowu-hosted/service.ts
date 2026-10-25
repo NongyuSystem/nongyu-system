@@ -14,13 +14,37 @@ import { getEnv } from "../../config/env.js";
 import { AppError, ErrorCodes } from "../../lib/errors.js";
 import { autoLogin } from "./autoLogin.js";
 import { decryptSecret, encryptSecret, parseCredentialKey } from "./cipher.js";
+import { findUserById } from "../users/repo.js";
 import { deleteCredential, findCredential, markLoginResult, upsertCredential } from "./repo.js";
 
 /** 会话缓存：同一用户短时间内复用同一个 ASP Cookie，避免高频自动登录触发风控 */
 const SESSION_TTL_MS = 10 * 60 * 1000;
+/** 缓存条目上限：超出时先清过期项，仍超则淘汰最旧的（防止长期运行内存只增不减） */
+const SESSION_CACHE_MAX = 1000;
 
 type CachedSession = { cookie: string; at: number };
 const sessionCache = new Map<number, CachedSession>();
+
+/** 清理过期缓存；返回清理后是否仍在超限状态 */
+function pruneSessionCache(): void {
+  const now = Date.now();
+  for (const [userId, entry] of sessionCache) {
+    if (now - entry.at >= SESSION_TTL_MS) sessionCache.delete(userId);
+  }
+  if (sessionCache.size <= SESSION_CACHE_MAX) return;
+  // Map 保持插入顺序，删除最旧的一批
+  const overflow = sessionCache.size - SESSION_CACHE_MAX;
+  let removed = 0;
+  for (const key of sessionCache.keys()) {
+    sessionCache.delete(key);
+    if (++removed >= overflow) break;
+  }
+}
+
+function putSessionCache(userId: number, cookie: string): void {
+  sessionCache.set(userId, { cookie, at: Date.now() });
+  if (sessionCache.size > SESSION_CACHE_MAX) pruneSessionCache();
+}
 
 export type HostedStatus = {
   /** 托管能力是否在服务端可用（未配置密钥则为 false） */
@@ -73,6 +97,16 @@ export async function enableHosted(
 ): Promise<{ cookie: string }> {
   const key = requireKey();
 
+  // 学号归属校验：不校验的话，用户可以拿别人的学号+密码把「别人的教务会话」
+  // 绑到自己账号下，后续 autoLogin 会返回他人会话 —— 属于越权。
+  const user = await findUserById(userId);
+  if (!user) {
+    throw new AppError(ErrorCodes.VALIDATION, "用户不存在", 400);
+  }
+  if (user.student_no !== studentNo) {
+    throw new AppError(ErrorCodes.VALIDATION, "只能托管当前登录账号本人的教务凭据", 400);
+  }
+
   const probe = await autoLogin({ studentNo, password });
   if (!probe.success) {
     const message = probe.ocrUnavailable
@@ -87,7 +121,7 @@ export async function enableHosted(
     passwordCipher: encryptSecret(password, key),
   });
   await markLoginResult(userId, { ok: true });
-  sessionCache.set(userId, { cookie: probe.cookie, at: Date.now() });
+  putSessionCache(userId, probe.cookie);
 
   return { cookie: probe.cookie };
 }
@@ -144,7 +178,7 @@ export async function loginWithHostedCredential(userId: number): Promise<HostedL
     };
   }
 
-  sessionCache.set(userId, { cookie: result.cookie, at: Date.now() });
+  putSessionCache(userId, result.cookie);
   await markLoginResult(userId, { ok: true });
   return { success: true, cookie: result.cookie, cached: false };
 }

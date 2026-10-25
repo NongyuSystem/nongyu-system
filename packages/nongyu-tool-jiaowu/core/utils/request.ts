@@ -39,6 +39,9 @@ const service: AxiosInstance = axios.create({
   timeout: 20000,
   headers: COMMON_HEADERS,
   responseType: "arraybuffer", // 默认返回 arraybuffer 以便手动解码 GBK
+  // 教务会话靠原生 Cookie 罐（RN 读不到 Set-Cookie）：
+  // withCredentials=false 时 RN 可能不发也不收 cookie，必须显式打开。
+  withCredentials: true,
 });
 
 /**

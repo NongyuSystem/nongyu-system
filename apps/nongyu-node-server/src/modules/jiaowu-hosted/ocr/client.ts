@@ -125,22 +125,27 @@ function ensureWorker(): ChildProcessWithoutNullStreams | null {
  * @param imageBase64 纯 base64（不含 `data:image/png;base64,` 前缀）
  * @returns 4 位数字；识别器不可用或超时返回 null（调用方应降级为手输）
  */
+/** 串行链：worker 单进程，必须一个识别完再发下一个 */
+let recognitionChain: Promise<unknown> = Promise.resolve();
+
+/**
+ * 识别一张验证码（并发调用会被排队串行执行）。
+ *
+ * 旧实现用「劫持 pending.resolve」来排队，并发 ≥2 时多个 Promise 会共享同一份
+ * worker 输出，结果直接串位。这里改成标准的 Promise 链。
+ *
+ * @param imageBase64 纯 base64（不含 `data:image/png;base64,` 前缀）
+ * @returns 4 位数字；识别器不可用或超时返回 null（调用方应降级为手输）
+ */
 export function recognizeCaptcha(imageBase64: string): Promise<string | null> {
+  const task = recognitionChain.then(() => recognizeOnce(imageBase64));
+  recognitionChain = task.catch(() => undefined);
+  return task;
+}
+
+function recognizeOnce(imageBase64: string): Promise<string | null> {
   const child = ensureWorker();
   if (!child) return Promise.resolve(null);
-
-  // worker 串行处理，上一个还没回就排队等待（调用方本身是低频的）
-  if (pending) {
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve(null), TIMEOUT_MS);
-      const original = pending!.resolve;
-      pending!.resolve = (value) => {
-        original(value);
-        resolve(value);
-      };
-      void timer;
-    });
-  }
 
   return new Promise((resolve) => {
     const timeout = started ? TIMEOUT_MS : FIRST_TIMEOUT_MS;
@@ -151,7 +156,8 @@ export function recognizeCaptcha(imageBase64: string): Promise<string | null> {
       resolve(null);
     }, timeout);
     pending = { resolve, timer };
-    child.stdin.write(`${imageBase64}\n`);
+    child.stdin.write(`${imageBase64}
+`);
   });
 }
 

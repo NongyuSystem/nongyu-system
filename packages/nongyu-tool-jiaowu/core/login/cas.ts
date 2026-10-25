@@ -44,6 +44,13 @@ const CAS_SERVICE_URL = "https://jiaowu.sicau.edu.cn/jiaoshi/aspsso/caslogin.asp
  */
 const RESPONSE_SALT = ":sicau-cas";
 
+/**
+ * 本模块所有请求都在走「原生 Cookie 罐」模式：RN 读不到 Set-Cookie，
+ * 只能依赖原生网络栈自动保存/回送。withCredentials=false 会导致 cookie 不被携带，
+ * 因此统一打开（登录链路与业务请求必须共享同一份会话）。
+ */
+axios.defaults.withCredentials = true;
+
 /** 教务 ASP 会话 Cookie 前缀（会话只认这一族） */
 const ASP_COOKIE_PREFIX = "ASPSESSIONID";
 
@@ -247,6 +254,20 @@ export async function getJiaowuCaptcha(): Promise<JiaowuCaptchaResult> {
   }
 }
 
+/** 教务域名的唯一合法前缀（含结尾斜杠，避免 sicau.edu.cn.evil.com 之类绕过） */
+const JIAOWU_ORIGIN_PREFIX = "https://jiaowu.sicau.edu.cn/";
+
+/**
+ * 同源约束：只允许把请求发往教务域名。
+ *
+ * `callbackUrl` 与 302 的 `Location` 都来自服务端响应，一旦被中间人改写，
+ * 后续请求会带着会话 Cookie 飞向内网地址 —— 典型的带凭证 SSRF。
+ * 这里做最后一道兜底：非法地址一律回落到已知的 CAS 入口。
+ */
+function assertJiaowuOrigin(url: string, fallback: string = CAS_SERVICE_URL): string {
+  return url.toLowerCase().startsWith(JIAOWU_ORIGIN_PREFIX) ? url : fallback;
+}
+
 /**
  * 把 ticket 写进教务回调地址（set 语义，替换同名参数）。
  *
@@ -342,6 +363,45 @@ type CasLoginPayload = {
   users?: Array<{ id?: string | number }>;
 };
 
+/** 用于探测会话是否建立的轻量业务页（需登录才能 200） */
+const SESSION_PROBE_URL = "https://jiaowu.sicau.edu.cn/xuesheng/dangan/banji/bjiben.asp";
+
+/**
+ * 探测教务会话是否已建立。
+ *
+ * 存在的意义：React Native 的 XHR 读不到 `Set-Cookie`，JS 侧拿不到 ASPSESSIONID，
+ * 但原生 Cookie 罐其实已经收下了。此时只能用一个「需要登录才 200」的页面反向验证。
+ *
+ * 关键：**不能只看状态码**。RN 的 XHR 由原生网络栈执行，会自动跟随重定向，
+ * `maxRedirects: 0` 在 RN 里不生效 —— 未登录时教务 302 到登录页，跟完之后仍是 200，
+ * 只看状态码会把「登录页」误判成「已登录」。因此必须检查响应体特征。
+ */
+async function probeJiaowuSession(): Promise<boolean> {
+  try {
+    const res = await axios.get(SESSION_PROBE_URL, {
+      timeout: CALLBACK_TIMEOUT,
+      validateStatus: () => true,
+      headers: buildCallbackHeaders(getCookie()),
+      responseType: "text",
+      transformResponse: [(data) => data],
+    });
+
+    if (res.status !== 200) return false;
+
+    const body = String(res.data ?? "");
+    if (body.length < 300) return false;
+
+    // 被踢回登录页的几种特征（与响应拦截器的判定口径一致）
+    if (/登录超时|账号验证失败/.test(body)) return false;
+    if (/type=["']password["']/i.test(body)) return false;
+    if (/name=["']pwd["']/i.test(body)) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 公共收尾：拿 service ticket 回投教务，沿重定向链建立 ASP 会话。
  *
@@ -366,7 +426,11 @@ async function completeServiceLogin(
   }
 
   let cookiePairs = cookieFromEntry.slice();
-  let currentUrl = buildCallbackUrl(payload?.callbackUrl || CAS_SERVICE_URL, ticket, userId);
+  let currentUrl = buildCallbackUrl(
+    assertJiaowuOrigin(payload?.callbackUrl || CAS_SERVICE_URL),
+    ticket,
+    userId,
+  );
   let settled = false;
 
   for (let hop = 0; hop < CAS_MAX_REDIRECTS; hop += 1) {
@@ -386,7 +450,7 @@ async function completeServiceLogin(
       settled = true;
       break;
     }
-    currentUrl = resolveRedirect(currentUrl, String(location));
+    currentUrl = assertJiaowuOrigin(resolveRedirect(currentUrl, String(location)), currentUrl);
   }
 
   const finalCookie = mergeCookiePairs(cookiePairs);
@@ -399,15 +463,22 @@ async function completeServiceLogin(
     };
   }
 
+  // RN 的 XHR 读不到 Set-Cookie（浏览器同源策略），但原生 Cookie 罐会跟随后续请求。
+  // 因此 cookie 为空不等于失败：用一次业务页探测，能拿到 200 就说明会话已建立。
   if (!finalCookie) {
-    return {
-      success: false,
-      message: "教务系统未返回会话 Cookie，请改用校园网重试",
-      needRefreshCaptcha: true,
-    };
+    const alive = await probeJiaowuSession();
+    if (!alive) {
+      return {
+        success: false,
+        message: "教务系统未建立会话，请确认已连接校园网后重试",
+        needRefreshCaptcha: true,
+      };
+    }
+    // 会话交给原生 Cookie 罐，不写内存 Cookie（避免空 Cookie 头覆盖原生罐）
+    return { success: true, cookie: "" };
   }
 
-  // 落会话：业务页请求靠这串 Cookie
+  // 落会话：业务页请求靠这串 Cookie（Node / 桌面环境）
   setCookie(finalCookie);
   return { success: true, cookie: finalCookie };
 }
