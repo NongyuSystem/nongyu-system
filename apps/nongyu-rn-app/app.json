@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "农屿Dev",
-    "slug": "nongyu-dev",
+    "name": "农屿",
+    "slug": "nongyu",
     "version": "4.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -28,7 +28,7 @@
         "backgroundColor": "#E8F5E9"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.nongyu.app.dev",
+      "package": "com.nongyu.app",
       "versionCode": 8,
       "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
@@ -103,9 +103,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "9866cc64-7f08-4da6-b134-450653ed17fd"
+        "projectId": "17bddde5-83f9-4bed-b69a-af6b3fe7a228"
       }
     },
-    "owner": "drayee_fly"
+    "owner": "nongyu-team"
   }
 }
