@@ -25,6 +25,9 @@ catalog:
   axios: "^1.17.0" #
   iconv-lite: "^0.7.2" #
   buffer: "^6.0.3" #
+  # 统一身份认证响应体为 AES-128-CBC 加密；RN 无 node:crypto，用纯 JS 实现
+  crypto-js: "^4.2.0" #
+  "@types/crypto-js": "^4.2.2" #
   mitt: "^3.0.1" #
   react: "^19.2.0" #
   "@types/react": "^19.2.0" #

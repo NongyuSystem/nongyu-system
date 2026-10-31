@@ -17,7 +17,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://8.137.82.17",
+        "EXPO_PUBLIC_API_BASE_URL": "http://103.236.88.53:33699",
         "EXPO_PUBLIC_TRACK_BASE_URL": "https://47.108.74.61"
       }
     },

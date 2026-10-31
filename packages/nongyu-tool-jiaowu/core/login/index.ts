@@ -247,6 +247,11 @@ function buildLoginPostHeaders(): Record<string, string> {
  * 四川农业大学教务系统登录函数。
  *
  * 先打开官网登录页建立会话，从 hidden 域解析 sign / hour_key，再向 check.asp 提交学号密码。
+ *
+ * @deprecated 教务系统自 2026-10-23 起已取消首页「账号 + 密码」登录，
+ * 该口令路径随时可能被彻底关闭。请改用 `jiaowuLoginByCas`（统一身份认证 + 用户输入的图形验证码），
+ * 详见 `./cas.ts`。本函数暂时保留，只为在旧路径仍可用时做回退对照。
+ *
  * 使用场景：
  * 1. 农屿App登录页，校验通过后农屿本地存学号和密码
  *
@@ -346,3 +351,27 @@ export async function jiaowuLogin(user?: string, pwd?: string) {
     return { success: false, message };
   }
 }
+
+/**
+ * 统一身份认证（CAS）登录。
+ *
+ * 教务系统改为只走「微信扫码」或「统一身份认证」之后，登录主路径是这里：
+ * 先 `getJiaowuCaptcha()` 取图给用户看，用户输入后交给 `jiaowuLoginByCas()`。
+ * 验证码必须由用户读图输入 —— 这也是平台区分人与脚本的唯一手段。
+ */
+export {
+  getJiaowuCaptcha,
+  jiaowuLoginByCas,
+  jiaowuLoginByPhone,
+  sendJiaowuSmsCode,
+  prepareJiaowuTransport,
+  loginWebVpnPortal,
+  WEBVPN_PORTAL_APPID,
+  type JiaowuCaptcha,
+  type JiaowuCaptchaResult,
+  type JiaowuCasLoginInput,
+  type JiaowuCasLoginResult,
+  type JiaowuPhoneLoginInput,
+  type JiaowuSendSmsInput,
+  type WebVpnPortalLoginResult,
+} from "./cas";

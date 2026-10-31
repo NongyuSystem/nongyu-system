@@ -43,6 +43,14 @@ const envSchema = z.object({
    */
   CORS_ORIGIN: z.string().default(""),
   INTERNAL_TOKEN: z.string().min(16),
+  /**
+   * 教务凭据托管密钥（32 字节：64 位 hex 或 base64）。
+   * 留空 = 关闭「免验证码自动登录」能力，客户端会隐藏该入口；
+   * 轮换密钥会使已托管的凭据全部失效（用户需重新开启）。
+   */
+  JIAOWU_CREDENTIAL_KEY: z.string().default(""),
+  /** 验证码识别用的 Python 解释器；不配则默认 python3 */
+  JIAOWU_OCR_PYTHON: z.string().default("python3"),
   /** Track 根地址，无尾斜杠；Node 代理 Admin 指标时使用 */
   TRACK_BASE_URL: z
     .string()
@@ -73,6 +81,14 @@ const envSchema = z.object({
   LLM_POOL_LEASE_MAX_MS: z.coerce.number().int().positive().default(300_000),
   /** AES 密钥材料；池开启时加解密路径要求长度 ≥16 */
   LLM_KEY_ENCRYPTION_SECRET: z.string().default(""),
+  /** 反馈墙帖子同步 GitHub Issue：Token；为空则整体关闭该能力 */
+  GITHUB_TOKEN: z.string().default(""),
+  /** 反馈墙帖子同步 GitHub Issue：目标仓库，格式 owner/repo */
+  GITHUB_REPO: z.string().default(""),
+  /** 反馈墙 Issue 附带 label；留空则只建不打标 */
+  GITHUB_ISSUE_LABEL: z.string().default("feedback"),
+  /** 单次调用 GitHub Issues API 的超时（毫秒） */
+  GITHUB_ISSUE_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
 });
 
 export type Env = z.infer<typeof envSchema>;

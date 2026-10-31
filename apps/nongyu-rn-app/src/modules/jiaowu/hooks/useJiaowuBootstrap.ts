@@ -6,6 +6,7 @@ import {
   bridgeSetLoginData,
   restoreAspCookieFromStorage,
 } from "@/modules/jiaowu/auth/jiaowuSession";
+import { restoreWebVpnTicket } from "@/modules/jiaowu/auth/webvpnTicket";
 import { appAuthMe } from "@/api/appAuth";
 import { AppApiError, isAuthInvalidCode } from "@/api/appApiError";
 import { handleAuthInvalid } from "@/api/handleAuthInvalid";
@@ -66,6 +67,7 @@ export function useJiaowuBootstrap() {
         if (creds) {
           bridgeSetLoginData(creds.studentId, creds.password);
           restoreAspCookieFromStorage();
+          await restoreWebVpnTicket();
           const snapshot = loadSessionSnapshot();
           const profile = parseStoredProfile(snapshot.profileJson, creds.studentId);
           const token = snapshot.token ?? null;

@@ -21,6 +21,7 @@
     "express-rate-limit": "^7.5.0",
     "jose": "^6.0.11",
     "mysql2": "^3.12.0",
+    "nongyu-tool-jiaowu": "workspace:*",
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",
     "zod": "^3.24.2"

@@ -34,3 +34,16 @@ apps/nongyu-node-track-server/dist-out/
 # RN 本地原生工程（云构建会 prebuild）
 apps/nongyu-rn-app/android/
 apps/nongyu-rn-app/ios/
+
+# 各子包的 node_modules（上面根级规则不覆盖 monorepo 子目录，曾导致归档 748MB）
+**/node_modules/
+**/dist/
+**/.expo/
+**/.turbo/
+**/.cxx/
+
+# 会话产物与文档（构建不需要）
+_artifacts/
+.dsh-*
+nongyu-promo/
+docs/

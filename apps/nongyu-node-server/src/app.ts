@@ -7,6 +7,7 @@ import { errorHandler, requestIdMiddleware } from "./middlewares/common.js";
 import { ok } from "./lib/response.js";
 import { asyncHandler } from "./middlewares/common.js";
 import { adminAuthRouter, appAuthRouter } from "./modules/auth/routes.js";
+import { appJiaowuHostedRouter } from "./modules/jiaowu-hosted/routes.js";
 import { adminUsersRouter, appUsersRouter } from "./modules/users/routes.js";
 import { appSettingsRouter } from "./modules/settings/routes.js";
 import { appCourseExtRouter } from "./modules/course-ext/routes.js";
@@ -59,6 +60,7 @@ export function createApp() {
   );
 
   app.use("/api/app/auth", appAuthRouter);
+  app.use("/api/app/jiaowu", appJiaowuHostedRouter);
   app.use("/api/app/users/me/posts", appMyPostsRouter);
   app.use("/api/app/users/me/post-replies", appMyPostRepliesRouter);
   app.use("/api/app/users", appUsersRouter);
