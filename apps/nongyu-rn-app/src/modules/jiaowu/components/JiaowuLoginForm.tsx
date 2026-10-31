@@ -14,8 +14,15 @@ import { Ionicons } from "@expo/vector-icons";
 import type { JiaowuCaptcha } from "nongyu-tool-jiaowu";
 import { toast } from "@/components/ui/toast";
 import { createThemedStyles } from "@/theme/createThemedStyles";
-import { performJiaowuLogin } from "@/modules/jiaowu/auth/performJiaowuLogin";
-import { bridgeGetJiaowuCaptcha } from "@/modules/jiaowu/auth/jiaowuSession";
+import {
+  performJiaowuLogin,
+  performWebVpnPortalLogin,
+} from "@/modules/jiaowu/auth/performJiaowuLogin";
+import {
+  bridgeGetJiaowuCaptcha,
+  bridgeGetWebVpnPortalCaptcha,
+  bridgePrepareJiaowuTransport,
+} from "@/modules/jiaowu/auth/jiaowuSession";
 import { trackClick } from "@/modules/telemetry";
 
 type JiaowuLoginFormProps = {
@@ -50,16 +57,19 @@ export function JiaowuLoginForm({ onSuccess, compact }: JiaowuLoginFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [idError, setIdError] = useState<string | null>(null);
   const [statusText, setStatusText] = useState("");
+  const [viaWebVpn, setViaWebVpn] = useState(false);
+  const [vpnStage, setVpnStage] = useState<"portal" | "jiaowu">("portal");
 
   /**
    * 换一张验证码。任何一次登录失败后都要调用：
    * 验证码是一次性的，失败后旧图必然作废，留着只会让用户反复提交同一张废图。
    */
-  const loadCaptcha = useCallback(async () => {
+  const loadCaptcha = useCallback(async (stage: "portal" | "jiaowu" | "direct" = "direct") => {
     setCaptchaLoading(true);
     setCaptchaCode("");
     try {
-      const res = await bridgeGetJiaowuCaptcha();
+      const res =
+        stage === "portal" ? await bridgeGetWebVpnPortalCaptcha() : await bridgeGetJiaowuCaptcha();
       if (res.success) {
         setCaptcha(res.result);
       } else {
@@ -72,7 +82,18 @@ export function JiaowuLoginForm({ onSuccess, compact }: JiaowuLoginFormProps) {
   }, []);
 
   useEffect(() => {
-    void loadCaptcha();
+    let cancelled = false;
+    void (async () => {
+      const mode = await bridgePrepareJiaowuTransport();
+      if (cancelled) return;
+      const webvpn = mode === "webvpn";
+      setViaWebVpn(webvpn);
+      setVpnStage("portal");
+      await loadCaptcha(webvpn ? "portal" : "direct");
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadCaptcha]);
 
   /** 学号、密码、验证码都填了才可点；学号格式仅在 submit 校验 */
@@ -102,22 +123,32 @@ export function JiaowuLoginForm({ onSuccess, compact }: JiaowuLoginFormProps) {
     }
 
     setSubmitting(true);
-    setStatusText("正在验证…");
+    setStatusText(viaWebVpn && vpnStage === "portal" ? "正在登录 WebVPN…" : "正在验证…");
     try {
-      const result = await performJiaowuLogin({
+      const payload = {
         studentId,
         password,
         captchaCode,
         captchaUuid: captcha.uuid,
         queryClient,
-      });
+      };
+      const result =
+        viaWebVpn && vpnStage === "portal"
+          ? await performWebVpnPortalLogin(payload)
+          : await performJiaowuLogin(payload);
+      if (result.needJiaowuCaptcha) {
+        setVpnStage("jiaowu");
+        setStatusText("");
+        toast.info("请再输入教务验证码", { description: result.message });
+        void loadCaptcha("jiaowu");
+        return;
+      }
       if (!result.ok) {
         setStatusText("");
         toast.error("登录失败", {
           description: result.message || "请检查学号密码与验证码",
         });
-        // 不论失败原因，验证码都已作废，直接换一张
-        void loadCaptcha();
+        void loadCaptcha(viaWebVpn && vpnStage === "portal" ? "portal" : "jiaowu");
         return;
       }
       setStatusText("");
@@ -147,6 +178,13 @@ export function JiaowuLoginForm({ onSuccess, compact }: JiaowuLoginFormProps) {
     return (
       <View style={[styles.wrap, styles.compact]}>
         <Text style={styles.compactTitle}>登录后解锁成绩、考试等服务</Text>
+        {viaWebVpn ? (
+          <Text style={styles.errTip}>
+            {vpnStage === "portal"
+              ? "校外无法直连教务，先登录 WebVPN"
+              : "WebVPN 已登录，请再输入教务验证码"}
+          </Text>
+        ) : null}
         <TextInput
           style={styles.inputCompact}
           placeholder="学号"
@@ -185,7 +223,9 @@ export function JiaowuLoginForm({ onSuccess, compact }: JiaowuLoginFormProps) {
             accessibilityRole="button"
             accessibilityLabel="换一张验证码"
             hitSlop={6}
-            onPress={() => void loadCaptcha()}
+            onPress={() =>
+              void loadCaptcha(viaWebVpn && vpnStage === "portal" ? "portal" : "direct")
+            }
             style={styles.captchaBtn}
           >
             {renderCaptchaImage()}
@@ -214,6 +254,13 @@ export function JiaowuLoginForm({ onSuccess, compact }: JiaowuLoginFormProps) {
 
   return (
     <View style={styles.wrap}>
+      {viaWebVpn ? (
+        <Text style={styles.errTip}>
+          {vpnStage === "portal"
+            ? "校外无法直连教务，先登录 WebVPN"
+            : "WebVPN 已登录，请再输入教务验证码"}
+        </Text>
+      ) : null}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>学号</Text>
         <TextInput
@@ -278,7 +325,9 @@ export function JiaowuLoginForm({ onSuccess, compact }: JiaowuLoginFormProps) {
             accessibilityRole="button"
             accessibilityLabel="换一张验证码"
             hitSlop={6}
-            onPress={() => void loadCaptcha()}
+            onPress={() =>
+              void loadCaptcha(viaWebVpn && vpnStage === "portal" ? "portal" : "direct")
+            }
             style={styles.captchaBtn}
           >
             {renderCaptchaImage()}

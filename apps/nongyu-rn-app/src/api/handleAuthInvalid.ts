@@ -4,6 +4,7 @@ import { clearCredentials } from "@/storage/secureCredentials";
 import { clearAiTipMuted, clearSessionSnapshot } from "@/storage/mmkv";
 import { useSessionStore } from "@/stores/session";
 import { clearJiaowuToolSession } from "@/modules/jiaowu/auth/jiaowuSession";
+import { clearWebVpnTicket } from "@/modules/jiaowu/auth/webvpnTicket";
 import { clearSecondToolSession } from "@/modules/second/auth/secondSession";
 import { refreshSecondAuthFlag } from "@/modules/second/hooks/useSecondAuth";
 import { APP_AUTH_ERROR_CODES } from "@/api/appApiError";
@@ -35,6 +36,7 @@ export async function clearLocalAuthSession(): Promise<void> {
   const { invalidateNongyuAgent } = await import("@/agent/agent");
   invalidateNongyuAgent();
   clearJiaowuToolSession();
+  await clearWebVpnTicket();
   clearSecondToolSession();
   refreshSecondAuthFlag();
   clearSessionSnapshot();

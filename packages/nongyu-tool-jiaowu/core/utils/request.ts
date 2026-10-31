@@ -18,6 +18,7 @@ import {
   resolveJiaowuErrorMessage,
 } from "./errors";
 import { resolveJiaowuUserAgent } from "./userAgent";
+import { rewriteOutboundUrl } from "../webvpn/transport";
 
 /**
  * 教务网请求的通用 Headers
@@ -55,6 +56,11 @@ service.interceptors.request.use(
     // 登录请求已按浏览器抓包带 UA，不得覆盖
     if (!headerHas(config.headers, "User-Agent")) {
       config.headers.set("User-Agent", resolveJiaowuUserAgent());
+    }
+
+    // WebVPN 模式下把教务/auth 绝对地址改写成编码路径。直连模式是恒等函数。
+    if (config.url) {
+      config.url = rewriteOutboundUrl(config.url);
     }
 
     // 自动设置 Referer，许多 ASP 系统以此作为安全校验
@@ -194,7 +200,11 @@ service.interceptors.response.use(
     }
 
     // 判断响应内容是否提示登录超时
-    if (decodedHtml.includes("登录超时") || decodedHtml.includes("账号验证失败")) {
+    const finalUrl = String(
+      (response.request as { responseURL?: string } | undefined)?.responseURL ?? "",
+    );
+    const vpnTicketDead = finalUrl.startsWith("https://webvpn.sicau.edu.cn/login");
+    if (vpnTicketDead || decodedHtml.includes("登录超时") || decodedHtml.includes("账号验证失败")) {
       // 统一身份认证改造（2026-10-23）后，重新登录必须由用户看一次图形验证码，
       // 已无法用本地密码静默重登：这里只清掉失效会话，把「需重新登录」抛给界面。
       setCookie("");

@@ -20,11 +20,13 @@ import { invalidateNongyuAgent } from "@/agent/agent";
 import { clearAgentChatSessions } from "@/agent/session";
 import {
   bridgeJiaowuLoginByCas,
+  bridgeLoginWebVpnPortal,
   bridgeJiaowuLoginByPhone,
   bridgeSetLoginData,
   clearJiaowuToolSession,
   persistCurrentAspCookie,
 } from "./jiaowuSession";
+import { captureWebVpnTicket, clearWebVpnTicket } from "@/modules/jiaowu/auth/webvpnTicket";
 import { clearSecondToolSession } from "@/modules/second/auth/secondSession";
 import { refreshSecondAuthFlag } from "@/modules/second/hooks/useSecondAuth";
 
@@ -45,6 +47,8 @@ export type PerformJiaowuLoginResult = {
   nodeOk: boolean;
   /** 是否需要立刻换一张验证码（验证码错误/过期时置位） */
   needRefreshCaptcha?: boolean;
+  /** WebVPN 门户已登录，但教务会话还要再输一次验证码 */
+  needJiaowuCaptcha?: boolean;
   /** 托管凭据失效，需要用户重新开启或改用手动方式 */
   needsReauth?: boolean;
 };
@@ -85,6 +89,43 @@ export async function performJiaowuLogin(
     };
   }
 
+  await captureWebVpnTicket();
+  return finalizeJiaowuLogin({ studentId: trimmedId, password: trimmedPwd, queryClient });
+}
+
+/**
+ * 校外先登 WebVPN 门户。门户成功且教务会话已建立时直接收尾；
+ * 否则让界面再要一张教务验证码，第二次走 {@link performJiaowuLogin}。
+ */
+export async function performWebVpnPortalLogin(
+  input: PerformJiaowuLoginInput,
+): Promise<PerformJiaowuLoginResult> {
+  const { studentId, password, captchaCode, captchaUuid, queryClient } = input;
+  const trimmedId = studentId.trim();
+  const trimmedPwd = password.trim();
+  const portal = await bridgeLoginWebVpnPortal({
+    studentId: trimmedId,
+    password: trimmedPwd,
+    captchaCode: captchaCode.trim(),
+    captchaUuid,
+  });
+  if (!portal.success) {
+    return {
+      ok: false,
+      message: portal.message,
+      nodeOk: false,
+      needRefreshCaptcha: portal.needRefreshCaptcha,
+    };
+  }
+  await captureWebVpnTicket();
+  if (portal.needJiaowuCaptcha) {
+    return {
+      ok: false,
+      message: "WebVPN 已登录，请再输入教务验证码",
+      nodeOk: false,
+      needJiaowuCaptcha: true,
+    };
+  }
   return finalizeJiaowuLogin({ studentId: trimmedId, password: trimmedPwd, queryClient });
 }
 
@@ -304,6 +345,7 @@ export async function performJiaowuLogout(queryClient?: QueryClient): Promise<vo
   await clearAgentConfig();
   invalidateNongyuAgent();
   clearJiaowuToolSession();
+  await clearWebVpnTicket();
   clearSecondToolSession();
   refreshSecondAuthFlag();
   clearSessionSnapshot();

@@ -22,16 +22,20 @@ export {
   jiaowuLoginByCas, // 账密 + 图形验证码登录
   jiaowuLoginByPhone, // 手机短信验证码登录
   sendJiaowuSmsCode, // 发送登录短信验证码
+  prepareJiaowuTransport, // 直连可达则直连，否则切 WebVPN
+  loginWebVpnPortal, // 校外：先登 WebVPN 门户
+  WEBVPN_PORTAL_APPID,
   type JiaowuCaptcha,
   type JiaowuCaptchaResult,
   type JiaowuCasLoginInput,
   type JiaowuCasLoginResult,
   type JiaowuPhoneLoginInput,
   type JiaowuSendSmsInput,
+  type WebVpnPortalLoginResult,
 } from "./core/login";
 
 // Cookie 桥接（冷启动恢复 / 持久化备份）
-export { getCookie, setCookie } from "./core/utils";
+export { getCookie, setCookie, getJiaowuTransport, setJiaowuTransport } from "./core/utils";
 
 export { resolveJiaowuUserAgent, setJiaowuUserAgent } from "./core/utils";
 

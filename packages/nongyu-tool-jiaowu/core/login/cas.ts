@@ -23,6 +23,7 @@ import CryptoJS from "crypto-js";
 
 import { resolveJiaowuErrorMessage } from "../utils/errors";
 import { getCookie, setCookie } from "../utils/cookie";
+import { getJiaowuTransport, rewriteOutboundUrl, setJiaowuTransport } from "../webvpn/transport";
 
 /** 统一身份认证平台根地址 */
 const CAS_BASE_URL = "https://auth.sicau.edu.cn";
@@ -232,10 +233,10 @@ function buildCallbackHeaders(cookie?: string): Record<string, string> {
  * 用法：先拿图给用户看，用户输入后连同 `uuid` 一起交给 {@link jiaowuLoginByCas}。
  * 图过期或用户看不清时重新调用本函数即可换图。
  */
-export async function getJiaowuCaptcha(): Promise<JiaowuCaptchaResult> {
+export async function getJiaowuCaptcha(appid: string = CAS_APPID): Promise<JiaowuCaptchaResult> {
   try {
-    const response = await axios.get(`${CAS_BASE_URL}/api/v1/captcha`, {
-      params: { appid: CAS_APPID },
+    const response = await axios.get(rewriteOutboundUrl(`${CAS_BASE_URL}/api/v1/captcha`), {
+      params: { appid },
       timeout: CAS_TIMEOUT,
       headers: { Accept: "application/json" },
     });
@@ -266,6 +267,19 @@ const JIAOWU_ORIGIN_PREFIX = "https://jiaowu.sicau.edu.cn/";
  */
 function assertJiaowuOrigin(url: string, fallback: string = CAS_SERVICE_URL): string {
   return url.toLowerCase().startsWith(JIAOWU_ORIGIN_PREFIX) ? url : fallback;
+}
+
+/**
+ * WebVPN 模式下回调必须留在 webvpn 域。真站绝对地址先编码，编码失败则回落已知入口。
+ * 直连模式仍只允许教务域名，避免带着会话 Cookie 打到别的主机。
+ */
+function guardServiceUrl(url: string, fallback: string = CAS_SERVICE_URL): string {
+  if (getJiaowuTransport() === "webvpn") {
+    const rewritten = rewriteOutboundUrl(url);
+    if (rewritten.startsWith("https://webvpn.sicau.edu.cn/")) return rewritten;
+    return rewriteOutboundUrl(fallback);
+  }
+  return assertJiaowuOrigin(url, fallback);
 }
 
 /**
@@ -378,7 +392,7 @@ const SESSION_PROBE_URL = "https://jiaowu.sicau.edu.cn/xuesheng/dangan/banji/bji
  */
 async function probeJiaowuSession(): Promise<boolean> {
   try {
-    const res = await axios.get(SESSION_PROBE_URL, {
+    const res = await axios.get(rewriteOutboundUrl(SESSION_PROBE_URL), {
       timeout: CALLBACK_TIMEOUT,
       validateStatus: () => true,
       headers: buildCallbackHeaders(getCookie()),
@@ -427,7 +441,7 @@ async function completeServiceLogin(
 
   let cookiePairs = cookieFromEntry.slice();
   let currentUrl = buildCallbackUrl(
-    assertJiaowuOrigin(payload?.callbackUrl || CAS_SERVICE_URL),
+    guardServiceUrl(payload?.callbackUrl || CAS_SERVICE_URL),
     ticket,
     userId,
   );
@@ -450,7 +464,7 @@ async function completeServiceLogin(
       settled = true;
       break;
     }
-    currentUrl = assertJiaowuOrigin(resolveRedirect(currentUrl, String(location)), currentUrl);
+    currentUrl = guardServiceUrl(resolveRedirect(currentUrl, String(location)), currentUrl);
   }
 
   const finalCookie = mergeCookiePairs(cookiePairs);
@@ -505,7 +519,7 @@ export async function jiaowuLoginByCas(input: JiaowuCasLoginInput): Promise<Jiao
   try {
     // 1) 建立 ASP 会话。此步失败不阻断：拿到 ticket 后仍会再打一次回调。
     try {
-      const entry = await axios.get(CAS_SERVICE_URL, {
+      const entry = await axios.get(rewriteOutboundUrl(CAS_SERVICE_URL), {
         maxRedirects: 0,
         timeout: CALLBACK_TIMEOUT,
         validateStatus: (status) => status >= 200 && status < 400,
@@ -518,7 +532,7 @@ export async function jiaowuLoginByCas(input: JiaowuCasLoginInput): Promise<Jiao
 
     // 2) 统一身份认证校验，换 service ticket
     const loginResponse = await axios.post(
-      `${CAS_BASE_URL}/api/v1/cas/login`,
+      rewriteOutboundUrl(`${CAS_BASE_URL}/api/v1/cas/login`),
       {
         appid: CAS_APPID,
         code: captchaCode,
@@ -598,7 +612,7 @@ export async function sendJiaowuSmsCode(
 
   try {
     const response = await axios.post(
-      `${CAS_BASE_URL}/api/v1/sms/send`,
+      rewriteOutboundUrl(`${CAS_BASE_URL}/api/v1/sms/send`),
       { uuid: input.captchaUuid, code: captchaCode, type: "login", phone },
       { timeout: CAS_TIMEOUT, headers: { "Content-Type": "application/json" } },
     );
@@ -629,7 +643,7 @@ export async function jiaowuLoginByPhone(
   let cookieFromEntry: string[] = [];
   try {
     try {
-      const entry = await axios.get(CAS_SERVICE_URL, {
+      const entry = await axios.get(rewriteOutboundUrl(CAS_SERVICE_URL), {
         maxRedirects: 0,
         timeout: CALLBACK_TIMEOUT,
         validateStatus: (status) => status >= 200 && status < 400,
@@ -641,7 +655,7 @@ export async function jiaowuLoginByPhone(
     }
 
     const response = await axios.post(
-      `${CAS_BASE_URL}/api/v1/cas/loginByPhone`,
+      rewriteOutboundUrl(`${CAS_BASE_URL}/api/v1/cas/loginByPhone`),
       { code: smsCode, phone, appid: CAS_APPID },
       {
         timeout: CAS_TIMEOUT,
@@ -659,5 +673,133 @@ export async function jiaowuLoginByPhone(
     return completeServiceLogin(payload, cookieFromEntry);
   } catch (error) {
     return { success: false, message: resolveJiaowuErrorMessage(error, "短信登录异常") };
+  }
+}
+
+/** WebVPN 门户在统一认证里的应用标识，不能和教务 appid 混用 */
+export const WEBVPN_PORTAL_APPID = "aea49a21-6b26-4e8f-bcfc-80e3de591c93";
+
+/** 门户 CAS 回跳地址。ticket 必须打到这里，才能升级 wengine 票据 */
+export const WEBVPN_PORTAL_SERVICE = "https://webvpn.sicau.edu.cn/login?cas_login=true";
+
+/** 门户登录结果。needJiaowuCaptcha 表示票据已建立，但教务会话还要再验一次 */
+export type WebVpnPortalLoginResult =
+  | { success: true; needJiaowuCaptcha: boolean }
+  | { success: false; message: string; needRefreshCaptcha?: boolean };
+
+/**
+ * 短超时探测教务首页是否直连可达。任何 HTTP 响应都算通；超时或网络错误才切 WebVPN。
+ */
+export async function probeDirectJiaowu(): Promise<boolean> {
+  try {
+    await axios.get("https://jiaowu.sicau.edu.cn/web/web/web/index.asp", {
+      timeout: 4000,
+      validateStatus: () => true,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 登录前选择传输。可达则直连，否则切 WebVPN。
+ */
+export async function prepareJiaowuTransport(): Promise<"direct" | "webvpn"> {
+  const reachable = await probeDirectJiaowu();
+  const next = reachable ? "direct" : "webvpn";
+  setJiaowuTransport(next);
+  return next;
+}
+
+/**
+ * 跟随编码后的教务 caslogin。碰到 wui / 选账号页就停，交给第二次图形码。
+ */
+async function tryJiaowuEntryThroughVpn(): Promise<boolean> {
+  let currentUrl = rewriteOutboundUrl(CAS_SERVICE_URL);
+  for (let hop = 0; hop < CAS_MAX_REDIRECTS; hop += 1) {
+    const step = await axios.get(currentUrl, {
+      maxRedirects: 0,
+      timeout: CALLBACK_TIMEOUT,
+      validateStatus: (status) => status >= 200 && status < 400,
+      headers: buildCallbackHeaders(getCookie()),
+      responseType: "text",
+      transformResponse: [(data) => data],
+    });
+    const location = (step.headers as Record<string, unknown>)?.location;
+    if (!location) break;
+    const next = guardServiceUrl(resolveRedirect(currentUrl, String(location)), currentUrl);
+    if (next.includes("/wui/") || next.includes("cascallback=choose")) return false;
+    currentUrl = next;
+  }
+  return probeJiaowuSession();
+}
+
+/**
+ * 用门户 appid 换 WebVPN 票据，再尝试免第二次验证码进入教务。
+ * 调用前必须已经 setJiaowuTransport("webvpn")，否则 auth 请求不会走代理。
+ */
+export async function loginWebVpnPortal(
+  input: JiaowuCasLoginInput,
+): Promise<WebVpnPortalLoginResult> {
+  const studentId = input.studentId?.trim();
+  const password = input.password ?? "";
+  const captchaCode = input.captchaCode?.trim();
+  const captchaUuid = input.captchaUuid?.trim();
+  if (!studentId || !password) return { success: false, message: "未提供学号或密码" };
+  if (!captchaCode) return { success: false, message: "请输入图形验证码" };
+  if (!captchaUuid) {
+    return { success: false, message: "验证码已失效，请刷新后重试", needRefreshCaptcha: true };
+  }
+
+  setJiaowuTransport("webvpn");
+
+  try {
+    const loginResponse = await axios.post(
+      rewriteOutboundUrl(`${CAS_BASE_URL}/api/v1/cas/login`),
+      {
+        appid: WEBVPN_PORTAL_APPID,
+        code: captchaCode,
+        number: studentId,
+        password,
+        uuid: captchaUuid,
+      },
+      {
+        timeout: CAS_TIMEOUT,
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+      },
+    );
+    const loginBody = loginResponse.data as CasEnvelope<CasLoginPayload>;
+    const payload = unwrapEnvelope<CasLoginPayload>(loginBody);
+    const ticket = payload?.st;
+    const userId = payload?.users?.[0]?.id == null ? "" : String(payload.users[0].id);
+    if (!ticket || !userId) {
+      const message = loginBody?.msg || "WebVPN 登录失败";
+      return { success: false, message, needRefreshCaptcha: /验证码|captcha|过期/i.test(message) };
+    }
+
+    const callback = buildCallbackUrl(
+      payload?.callbackUrl?.startsWith("https://webvpn.sicau.edu.cn/")
+        ? payload.callbackUrl
+        : WEBVPN_PORTAL_SERVICE,
+      ticket,
+      userId,
+    );
+    const callbackResponse = await axios.get(callback, {
+      maxRedirects: 0,
+      timeout: CALLBACK_TIMEOUT,
+      validateStatus: (status) => status >= 200 && status < 400,
+      responseType: "text",
+      transformResponse: [(data) => data],
+    });
+    const callbackBody = String(callbackResponse.data ?? "");
+    if (callbackBody.includes("INVALID_TICKET")) {
+      return { success: false, message: "WebVPN 票据校验失败，请重试", needRefreshCaptcha: true };
+    }
+
+    const entered = await tryJiaowuEntryThroughVpn();
+    return { success: true, needJiaowuCaptcha: !entered };
+  } catch (error) {
+    return { success: false, message: resolveJiaowuErrorMessage(error, "WebVPN 登录异常") };
   }
 }

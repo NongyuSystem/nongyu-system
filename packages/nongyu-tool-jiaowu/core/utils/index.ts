@@ -12,6 +12,12 @@ export {
   type JiaowuHttpLogEvent,
 } from "./request";
 
+export {
+  getJiaowuTransport,
+  setJiaowuTransport,
+  type JiaowuTransportMode,
+} from "../webvpn/transport";
+
 // 解码相关
 export { decodeToText, decodeGbk, encodeGbkUrl } from "./decode";
 

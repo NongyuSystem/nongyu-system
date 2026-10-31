@@ -2,6 +2,9 @@ import {
   clearLoginData,
   getCookie,
   getJiaowuCaptcha,
+  loginWebVpnPortal,
+  prepareJiaowuTransport,
+  WEBVPN_PORTAL_APPID,
   jiaowuLogin,
   jiaowuLoginByCas,
   jiaowuLoginByPhone,
@@ -34,6 +37,27 @@ export function bridgeSetLoginData(studentId: string, password: string): void {
  */
 export function bridgeGetJiaowuCaptcha(): Promise<JiaowuCaptchaResult> {
   return getJiaowuCaptcha();
+}
+
+/**
+ * WebVPN 门户验证码。appid 与教务不同，不能复用教务那张图。
+ */
+export function bridgeGetWebVpnPortalCaptcha(): Promise<JiaowuCaptchaResult> {
+  return getJiaowuCaptcha(WEBVPN_PORTAL_APPID);
+}
+
+/**
+ * 登录页探测：校园网通则直连，否则切 WebVPN。
+ */
+export function bridgePrepareJiaowuTransport() {
+  return prepareJiaowuTransport();
+}
+
+/**
+ * 校外先登 WebVPN 门户。成功后可能还要一次教务验证码。
+ */
+export function bridgeLoginWebVpnPortal(input: JiaowuCasLoginInput) {
+  return loginWebVpnPortal(input);
 }
 
 /**
